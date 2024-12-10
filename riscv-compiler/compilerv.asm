@@ -32,7 +32,7 @@ openfile:
 	
 bufempty:
 	# read from file
-	mv 	a0, s11 		# load the file descriptor
+	mv 	a0, s11 	# load the file descriptor
 	li 	a7, SYS_FRD
 	la	a1, buf
 	li	a2, BUFLEN
@@ -43,6 +43,15 @@ bufempty:
 
 
 
+main:
+	lb	t1, (a1)
+	addi	a1, a1, 1
+	
+	li	s1, ' '
+	bltu	t1, s1, bufempty
+	
+	
+	
 
 	
 	# print to STDOUT
@@ -50,8 +59,7 @@ bufempty:
 	la	a0, buf
 	ecall
 	
-	j	bufempty
-
+	j	main
 
 
 exit:
@@ -64,3 +72,5 @@ exit:
 	
 	
 	
+
+#===========================================================
