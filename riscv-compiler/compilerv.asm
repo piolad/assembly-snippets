@@ -20,6 +20,8 @@ init:
 	addi	a0,a0, -1
 	li	a1, '\0'
 	sb	a1, BUFLEN(a0)
+	
+	mv	s0, zero
 #=================
 
 openfile:
@@ -39,18 +41,27 @@ bufempty:
 	addi	a2, a2, -1	# to make space for ending \0
 	ecall
 
-	blez	a0, exit
-
+	blez	a0, exit # nod ata loaded
+	
+	
 
 
 main:
 	lb	t1, (a1)
 	addi	a1, a1, 1
-	
-	li	s1, ' '
-	bltu	t1, s1, bufempty
+	beqz	t1, bufempty
 	
 	
+	# if instruction is not 0 and rencountered tab/space (less then ' ') go to interpret instruction
+	
+	# otherwise load next byte
+		# right shift by 8 and go to main
+	
+	# if is equal to 'u' - special case
+	# maybe add some special value that does not exist
+	# try to do it branchelessly
+	
+	# what if the insturction is loaded and we want to get the arguments?
 	
 
 	
@@ -69,7 +80,20 @@ exit:
 	
 	li	a7, SYS_EX0
 	ecall
+
+
+
+interpret_instruction:
+	# if arguments empty - set sth there and start interpreting instruciton
+	# if aruments non-empty - read strings until 3 aruguments are read
+	# if \n is read first - error and clear
 	
+	# add:
+	# ...
+	
+	
+	# last char - 'i'
+	# ...
 	
 	
 
