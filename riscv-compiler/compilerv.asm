@@ -88,6 +88,8 @@ interpret_instruction:
 	# if aruments non-empty - read strings until 3 aruguments are read
 	# if \n is read first - error and clear
 	
+	# we alsready have ' ' assured after instruction so we need to read arguments
+	
 	# add:
 	# ...
 	
