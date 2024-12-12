@@ -79,6 +79,13 @@ whitespaceChar:
 	# otherwise instruciton ready for interpretation
 
 interpret_instruction:
+	lb	t1, (a1)
+	bnez	t1, bufok1
+	
+	call	refill_buffer
+bufok1:
+	# check for 'x' in current position. if space/tab - skip. if newline -  go to inst_ready
+
 	# if arguments empty - set sth there and start interpreting instruciton
 	# if aruments non-empty - read strings until 3 aruguments are read
 	# if \n is read first - error and clear
