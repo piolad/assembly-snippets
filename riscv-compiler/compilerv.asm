@@ -17,11 +17,15 @@ fname:	.asciz "code.asm"
 init:
 	
 	mv	s0, zero # instruction input data
-	mv	s1, zero # arguments input data
+	mv	s1, zero # argument 1 input data
+	mv	s6, zero # argument 2 input data
+	mv	s7, zero # argument 3 input data
 	
 	li	s2, ' '
 	li	s3, '\t'
 	li	s4, '\n'
+	li	s8, 'i'
+	# minimum number for 4 arguments
 	li	s5, 2097152 	# 1 followed by 7*3=21 zeros
 	
 #=================
@@ -58,7 +62,7 @@ bufok:
 	# so either instruction is wrong or sltiu edge case
 	bgt	s0, s5, chk_sltiu
 	
-	
+	# also add converting to lowercase and removing weird characters (e.g. CR, etc)
 	# pack up to 4 bytes into 1 32bit register
 	slli	s0, s0, 7
 	add	s0, s0, t1
@@ -79,12 +83,103 @@ whitespaceChar:
 	# otherwise instruciton ready for interpretation
 
 interpret_instruction:
+	li	a6, 51		# encoded instruction - initialized to bin(0110011)
+	mv	t2, zero 	# for last character - 'i' check
+	
+	mv	t5, zero	# for func3 code
+	# check if last letter is 'i'
+	andi	t2, s0, 127 	# bin(7x'1') - get last char in t2
+	bne	t2, s8, no_imm	
+	
+	addi	a6, a6, -32	# remove bin(100000) - indicate immediate operation 
+	srli	t1, t1, 7 	# shift by 7 - get word without 'i'
+no_imm:
+
+	li	t3, 1602148
+	beq	t1, t3, add_
+		
+	li	t3, 1898092
+	beq	t1, t3, sll_
+	
+	li	t3, 1898100
+	beq	t1, t3, slt_
+	
+	li	t3, 242956917
+	beq	t1, t3, sltu_
+	
+	li	t3, 1980402
+	beq	t1, t3, xor_
+	
+	li	t3, 1898860
+	beq	t1, t3, srl_
+
+	li	t3, 14322
+	beq	t1, t3, or_
+	
+	li	t3, 1603428
+	beq	t1, t3, and_
+	
+	# only left possibilities sub, sra, srai
+	# they all have 0100000 in funct7
+	li 	t4, 1073741824	# 1 followed by 30 zeros
+	add	a6, a6, t4	
+	
+	li	t3, 1898849
+	beq	t1, t3, sra_
+	
+	li	t3, 1899234
+	beq	t1, t3, sub_
+	
+	j 	bad_instr
+	
+
+	# 'sub' and 'and' have the same func3 code - 000, so no changes to t5
+sub_:
+	beq	t2, s8, bad_instr # additional check - no 'subi' instruction
+add_:
+	# additional check for 'i' - there is no "subi" instruction
+	j	no_imm_end	
+
+
+sll_:
+	li	t5, 1
+	j	no_imm_end
+slt_:
+	li	t5, 2
+	j	no_imm_end
+sltu_:
+	li	t5, 3
+	j	no_imm_end
+xor_:
+	li	t5, 4
+	j	no_imm_end
+
+# 'sra', 'srl' - same  func3 code - 101
+sra_:
+srl_:
+	li	t5, 5
+	j	no_imm_end
+or_:
+	li	t5, 6
+	j	no_imm_end
+and_:
+	li	t5, 7
+	j	no_imm_end
+
+
+no_imm_end:
+	
+no_i:
+
+	
+	
 	lb	t1, (a1)
 	bnez	t1, bufok1
 	
 	call	refill_buffer
+	
 bufok1:
-	# check for 'x' in current position. if space/tab - skip. if newline -  go to inst_ready
+	# check for 'x' in current position. if space/tab - skip. if newline -  go to inst_ready	
 
 	# if arguments empty - set sth there and start interpreting instruciton
 	# if aruments non-empty - read strings until 3 aruguments are read
@@ -139,3 +234,4 @@ refill_buffer:
         ret
 
 #===========================================================
+bad_instr:
