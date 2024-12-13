@@ -44,13 +44,12 @@ openfile:
 
 read_inst:
 	lb	t1, (a1)
-	addi	a1, a1, 1
 	bnez	t1, bufok
 	
 	# refill buffer if empty
 	call    refill_buffer
 bufok:
-		
+	addi	a1, a1, 1
 	# check if whitespace character
 	beq	t1, s2, whitespaceChar	# ' '
 	beq	t1, s3, whitespaceChar	# '\t'
@@ -77,8 +76,7 @@ newlineChar:
 	#todo
 
 whitespaceChar:
-	# if instruction empty - skip char
-	beqz	s0, read_inst
+	beqz	s0, read_inst # if instruction empty - skip char
 	
 	# otherwise instruciton ready for interpretation
 
@@ -92,32 +90,32 @@ interpret_instruction:
 	bne	t2, s8, no_imm	
 	
 	addi	a6, a6, -32	# remove bin(100000) - indicate immediate operation 
-	srli	t1, t1, 7 	# shift by 7 - get word without 'i'
+	srli	s0, s0, 7 	# shift by 7 - get word without 'i'
 no_imm:
 
 	li	t3, 1602148
-	beq	t1, t3, add_
+	beq	s0, t3, add_
 		
 	li	t3, 1898092
-	beq	t1, t3, sll_
+	beq	s0, t3, sll_
 	
 	li	t3, 1898100
-	beq	t1, t3, slt_
+	beq	s0, t3, slt_
 	
 	li	t3, 242956917
-	beq	t1, t3, sltu_
+	beq	s0, t3, sltu_
 	
 	li	t3, 1980402
-	beq	t1, t3, xor_
+	beq	s0, t3, xor_
 	
 	li	t3, 1898860
-	beq	t1, t3, srl_
+	beq	s0, t3, srl_
 
 	li	t3, 14322
-	beq	t1, t3, or_
+	beq	s0, t3, or_
 	
 	li	t3, 1603428
-	beq	t1, t3, and_
+	beq	s0, t3, and_
 	
 	# only left possibilities sub, sra, srai
 	# they all have 0100000 in funct7
@@ -125,10 +123,10 @@ no_imm:
 	add	a6, a6, t4	
 	
 	li	t3, 1898849
-	beq	t1, t3, sra_
+	beq	s0, t3, sra_
 	
 	li	t3, 1899234
-	beq	t1, t3, sub_
+	beq	s0, t3, sub_
 	
 	j 	bad_instr
 	
@@ -231,6 +229,7 @@ refill_buffer:
         la      t0, buf        # t0 = address of buf
         add     t0, t0, a0     # t0 = buf + (number_of_bytes_read)
         sb      zero, 0(t0)    # *(buf + a0) = '\0'
+       	lb	t1, (a1)
         ret
 
 #===========================================================
