@@ -8,23 +8,20 @@
 
 
 .data
-ermsg:	.asciz " # ERROR\n"
+b_ins:	.asciz " # ERROR! Instruction mnemonic not recognized\n"
+b_sntx:	.asciz " # ERROR! Wrong line syntax\n"
+n_args:	.asciz " # ERROR! No arguments provided for instruction\n"
 buf:	.space BUFLEN
 fname:	.asciz "code.asm"
 
 .text
 
 init:
-	
-	mv	s0, zero # instruction input data
-	mv	s1, zero # argument 1 input data
-	mv	s6, zero # argument 2 input data
-	mv	s7, zero # argument 3 input data
-	
 	li	s2, ' '
 	li	s3, '\t'
 	li	s4, '\n'
 	li	s8, 'i'
+	li	s9, 'x'
 	# minimum number for 4 arguments
 	li	s5, 2097152 	# 1 followed by 7*3=21 zeros
 	
@@ -42,6 +39,11 @@ openfile:
 	
 	call	refill_buffer
 
+start_read_inst:
+	mv	s0, zero # instruction input data
+	mv	s1, zero # argument 1 input data
+	mv	s6, zero # argument 2 input data
+	mv	s7, zero # argument 3 input data
 read_inst:
 	lb	t1, (a1)
 	bnez	t1, bufok
@@ -91,107 +93,100 @@ interpret_instruction:
 	
 	addi	a6, a6, -32	# remove bin(100000) - indicate immediate operation 
 	srli	s0, s0, 7 	# shift by 7 - get word without 'i'
+	
 no_imm:
-
+	# add
 	li	t3, 1602148
-	beq	s0, t3, add_
-		
+	li	t5, 0
+	beq	s0, t3, no_imm_end
+	
+	# sll		
+	li	t5, 1
 	li	t3, 1898092
-	beq	s0, t3, sll_
+	beq	s0, t3, no_imm_end
 	
+	# slt
 	li	t3, 1898100
-	beq	s0, t3, slt_
+	li	t5, 2
+	beq	s0, t3, no_imm_end
 	
+	# sltu
 	li	t3, 242956917
-	beq	s0, t3, sltu_
+	li	t5, 3
+	beq	s0, t3, no_imm_end
 	
+	# xor
 	li	t3, 1980402
-	beq	s0, t3, xor_
+	li	t5, 4
+	beq	s0, t3, no_imm_end
 	
+	# srl
 	li	t3, 1898860
-	beq	s0, t3, srl_
-
+	li	t5, 5
+	beq	s0, t3, no_imm_end
+	
+	# or
 	li	t3, 14322
-	beq	s0, t3, or_
+	li	t5, 6
+	beq	s0, t3, no_imm_end
 	
+	# and
 	li	t3, 1603428
-	beq	s0, t3, and_
+	li	t5, 7
+	beq	s0, t3, no_imm_end
 	
-	# only left possibilities sub, sra, srai
+	# only left possibilities sub, sra/srai
 	# they all have 0100000 in funct7
 	li 	t4, 1073741824	# 1 followed by 30 zeros
 	add	a6, a6, t4	
 	
+	# sra
 	li	t3, 1898849
-	beq	s0, t3, sra_
+	li	t5, 5
+	beq	s0, t3, no_imm_end
 	
+	# sub
+	beq	t2, s8, bad_instr # additional check - no 'subi' instruction
 	li	t3, 1899234
-	beq	s0, t3, sub_
+	mv	t5, zero
+	beq	s0, t3, no_imm_end
 	
 	j 	bad_instr
-	
-
-	# 'sub' and 'and' have the same func3 code - 000, so no changes to t5
-sub_:
-	beq	t2, s8, bad_instr # additional check - no 'subi' instruction
-add_:
-	# additional check for 'i' - there is no "subi" instruction
-	j	no_imm_end	
-
-
-sll_:
-	li	t5, 1
-	j	no_imm_end
-slt_:
-	li	t5, 2
-	j	no_imm_end
-sltu_:
-	li	t5, 3
-	j	no_imm_end
-xor_:
-	li	t5, 4
-	j	no_imm_end
-
-# 'sra', 'srl' - same  func3 code - 101
-sra_:
-srl_:
-	li	t5, 5
-	j	no_imm_end
-or_:
-	li	t5, 6
-	j	no_imm_end
-and_:
-	li	t5, 7
-	j	no_imm_end
 
 
 no_imm_end:
+	# add func3
+	slli	t5, t5, 12
+	add	a6, a6, t5
 	
-no_i:
 
-	
-	
+###########################
+# todo: rewrite (and finish) this as a function;
+# fun will be called 2-3 times and accept separators of ',' and '\n' while saving last letter 
+# after function call, comparison whether newline occured after e.g. only 2 args
+###########################
+f_x_before_1st_arg:
 	lb	t1, (a1)
 	bnez	t1, bufok1
 	
 	call	refill_buffer
 	
 bufok1:
-	# check for 'x' in current position. if space/tab - skip. if newline -  go to inst_ready	
-
-	# if arguments empty - set sth there and start interpreting instruciton
-	# if aruments non-empty - read strings until 3 aruguments are read
-	# if \n is read first - error and clear
-
-	# we alsready have ' ' assured after instruction so we need to read arguments
+	# check for 'x' in current position. if space/tab - skip. if newline -  go to no_args
+	beq	t1, s9, rd_1st_arg
 	
-	# add:
-	# ...
+	beq	t1, s2, f_x_before_1st_arg	# ' '
+	beq	t1, s3, f_x_before_1st_arg	# '\t'
 	
-	
-	# last char - 'i'
-	# ...
+	# newline - end of instruction - wrong instruction
+	beq	t1, s4, no_args 	# TODO: here we assume only LF, there maybe arror with CRLF ending
 
+
+rd_1st_arg:
+	
+	
+	
+	
 chk_sltiu:
 	# (edge case of instruction interpretation)
 	# check if t1 is equal to 'u'
@@ -211,9 +206,7 @@ exit:
 	ecall
 	
 	
-refill_buffer:
-	# assumption: s11 contains file descriptor
-
+refill_buffer:		# assumption: s11 contains file descriptor
         # read data syscall
         mv	a0, s11
         li      a7, SYS_FRD
@@ -233,4 +226,18 @@ refill_buffer:
         ret
 
 #===========================================================
+# wrong instruciton - print info and go to newline or end
 bad_instr:
+	la 	a0, b_ins
+	li	a7, SYS_PRT
+	ecall
+	j	start_read_inst
+f_nline:
+	# todo: what if crlf is used?
+
+
+no_args:
+	la 	a0, n_args
+	li	a7, SYS_PRT
+	ecall
+	j	start_read_inst
