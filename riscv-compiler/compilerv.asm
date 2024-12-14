@@ -16,7 +16,8 @@ fname:	.asciz "code.asm"
 
 .text
 
-init:
+init:	
+	# for string comparisions
 	li	s2, ' '
 	li	s3, '\t'
 	li	s4, '\n'
@@ -25,23 +26,20 @@ init:
 	# minimum number for 4 arguments
 	li	s5, 2097152 	# 1 followed by 7*3=21 zeros
 	
-#=================
 
 openfile:
 	li	a7, SYS_FOP	# system call for open file
-	la	a0, fname	#  file name
+	la	a0, fname	# file name
 	li	a1, RDFLAG
 	li	a2, 0
-	ecall			# open a file
+	ecall
 	mv 	s11, a0		# save the file descriptor
 	
-	
-	
-	call	refill_buffer
+	call	refill_buffer	# prefill the buffer
 
-start_read_inst:
-	mv	s0, zero # instruction input data / 1st input data
-	mv	s1, zero # for immeidate indication
+start_read_inst	# pack instructions
+	mv	s0, zero	# instruction input data / 1st input data
+	mv	s1, zero	# for immeidate indication
 read_inst:
 	lb	s7, (a1)
 	bnez	s7, bufok
@@ -298,7 +296,7 @@ bufok3:
 #===============================================================#
 
 # function: rd_int12b
-# get first num, upto 12 bits long
+# Get first num, upto 12 bits long
 # returns:
 # 	a0 - signed 12bit number
 rd_int12b:
@@ -377,7 +375,7 @@ chk_sltiu:
 
 # function: exit
 # Close file and return 0.
-# Assumption: s11 contains File Descriptor
+# 	Assumption: s11 contains File Descriptor
 exit:
 	li	a7, SYS_FCLOSE
 	mv	a0, s11		# file descriptor to close
@@ -386,8 +384,12 @@ exit:
 	li	a7, SYS_EX0
 	ecall
 #==================================================================	
-	
-refill_buffer:		# assumption: s11 contains file descriptor
+
+
+# function: refill_buffer
+# refill the buffer containing the file contents
+# assumption: s11 contains file descriptor
+refill_buffer:
         # read data syscall
         mv	a0, s11
         li      a7, SYS_FRD
@@ -405,7 +407,7 @@ refill_buffer:		# assumption: s11 contains file descriptor
         sb      zero, 0(t0)    # *(buf + a0) = '\0'
        	lb	s7, (a1)
         ret
-
+#===========================================================
 
 skip_to_nline:
 # todo: implement this
