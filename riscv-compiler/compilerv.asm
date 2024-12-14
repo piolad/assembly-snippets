@@ -77,7 +77,7 @@ newlineChar:
 	#todo
 
 whitespaceChar:
-	beqz	s0, read_inst # if instruction empty - skip char
+	beqz	s0, read_inst 	# if instruction empty - skip char
 	
 	# otherwise instruciton ready for interpretation
 
@@ -161,15 +161,11 @@ no_imm_end:
 
 
 	mv	s0, zero	# reset s0 for first argument
-###########################
-# todo: rewrite (and finish) this as a function;
-# fun will be called 2-3 times and accept separators of ',' and '\n' while saving last letter 
-# after function call, comparison whether newline occured after e.g. only 2 args
-###########################
+	
+#================== 1st argument ================== 
 f_x_before_1st_arg:
 	lb	s7, (a1)
 	bnez	s7, bufok1
-	
 	call	refill_buffer
 	
 bufok1:
@@ -191,12 +187,77 @@ bufok1:
 	bgtu	a0, t1, syntax_e
 	slli	a0, a0, 7
 	add	a6, a6, a0	# encode destination register
-
-f_comma:	
-	beq s7, 
 	
-	# TODO: after calling perform additonal checks like if the last chracter is ' ' or ',' - then ok. Otherwiser - syntax error
+	li	t1, ','
+	beq	s7, t1, arg1comma_found	# maybe char that ended the num was a comma - then ok
 
+
+f_comma_arg1:	
+	lb	s7, (a1)
+	bnez	s7, bufok_a1
+
+	call	refill_buffer
+	li	t1, ','		# t1 may get invalidated by jalr
+bufok_a1:
+	addi	a1, a1, 1
+	# TODO: optimize branches
+	beq	s7, t1, arg1comma_found
+	beq	s7, f_comma_arg1
+	beq	s7, s2, f_comma_arg1	# ' '
+	beq	s7, s3, f_comma_arg1	# '\t'
+
+	j	syntax_e
+
+arg1comma_found:
+#================== 2nd argument ================== 
+f_x_before_2nd_arg:
+	lb	s7, (a1)
+	bnez	s7, bufok1
+	call	refill_buffer
+	
+bufok2:
+	addi	a1, a1, 1
+	# if space/tab - skip. if newline -  go to no_args. if anything else - syntax error
+	
+	beq	s7, s2, f_x_before_2nd_arg	# ' '
+	beq	s7, s3, f_x_before_2nd_arg	# '\t'
+	
+	# newline - end of instruction - wrong instruction
+	beq	s7, s4, syntax_e 	# TODO: here we assume only LF, there maybe arror with CRLF ending
+	
+	bne	s7, s9, syntax_e	# not whitespace, can only be 'x' or syntax error
+		
+	call	rd_int12b
+	
+	# check if returned value is <32
+	li	t1, 32
+	bgtu	a0, t1, syntax_e
+	slli	a0, a0, 15
+	add	a6, a6, a0	# encode destination register
+	
+	li	t1, ','
+	beq	s7, t1, arg2comma_found	# maybe char that ended the num was a comma - then ok
+
+f_comma_arg2:	
+	lb	s7, (a1)
+	bnez	s7, bufok_a1
+
+	call	refill_buffer
+	li	t1, ','		# t1 may get invalidated by jalr
+bufok_a1:
+	addi	a1, a1, 1
+	# TODO: optimize branches
+	beq	s7, t1, arg2comma_found
+	beq	s7, f_comma_arg2
+	beq	s7, s2, f_comma_arg2	# ' '
+	beq	s7, s3, f_comma_arg2	# '\t'
+
+	j	syntax_e
+
+arg2comma_found:
+
+#================== 3rd argument ================== 
+#	either immediate or register
 
 # function: rd_int12b
 # get first num, upto 12 bits long
