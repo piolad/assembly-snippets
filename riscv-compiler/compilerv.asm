@@ -186,6 +186,15 @@ bufok1:
 		
 	call	rd_int12b
 	
+	# check if returned value is <32
+	li	t1, 32
+	bgtu	a0, t1, syntax_e
+	slli	a0, a0, 7
+	add	a6, a6, a0	# encode destination register
+
+f_comma:	
+	beq s7, 
+	
 	# TODO: after calling perform additonal checks like if the last chracter is ' ' or ',' - then ok. Otherwiser - syntax error
 
 
