@@ -41,8 +41,7 @@ openfile:
 
 start_read_inst:
 	mv	s0, zero # instruction input data / 1st input data
-	mv	s1, zero # argument 2 input data
-	mv	s6, zero # argument 3 input data
+	mv	s1, zero # for immeidate indication
 read_inst:
 	lb	s7, (a1)
 	bnez	s7, bufok
@@ -92,6 +91,7 @@ interpret_instruction:
 	
 	addi	a6, a6, -32	# remove bin(100000) - indicate immediate operation 
 	srli	s0, s0, 7 	# shift by 7 - get word without 'i'
+	li	s1, 1
 	
 no_imm:
 	# add
@@ -212,7 +212,7 @@ arg1comma_found:
 #================== 2nd argument ================== 
 f_x_before_2nd_arg:
 	lb	s7, (a1)
-	bnez	s7, bufok1
+	bnez	s7, bufok2
 	call	refill_buffer
 	
 bufok2:
@@ -258,14 +258,53 @@ arg2comma_found:
 
 #================== 3rd argument ================== 
 #	either immediate or register
+	bnez	s1, 3rd_arg_immediate
+
+f_x_before_3rd_arg:
+	lb	s7, (a1)
+	bnez	s7, bufok3
+	call	refill_buffer
+	
+bufok3:
+	addi	a1, a1, 1
+	# if space/tab - skip. if newline -  go to no_args. if anything else - syntax error
+	
+	beq	s7, s2, f_x_before_3rd_arg	# ' '
+	beq	s7, s3, f_x_before_3rd_arg	# '\t'
+	
+	# newline - end of instruction - wrong instruction
+	beq	s7, s4, syntax_e 	# TODO: here we assume only LF, there maybe arror with CRLF ending
+	
+	bne	s7, s9, syntax_e	# not whitespace, can only be 'x' or syntax error
+		
+	call	rd_int12b
+	
+	# check if returned value is <32
+	li	t1, 32
+	bgtu	a0, t1, syntax_e
+	slli	a0, a0, 20
+	add	a6, a6, a0	# encode destination register
+
+# todo: here check unntil '\n'. if  '\t' or ' ' - skip. If '#' - go to new line. Otherwise - syntax error
+
+
+3rd_arg_immediate:
+
+# here another wi
+
+
+#===============================================================#
+# 			Utility functions:			#
+#===============================================================#
 
 # function: rd_int12b
 # get first num, upto 12 bits long
+# returns:
+# 	a0 - signed 12bit number
 rd_int12b:
 	mv	a3, zero	# converted number
-	mv	a4, zero	#  sign_info; at the same indicates largest possible number in terms of abosolute value (2048 for negative, 2047 for positive)
+	mv	a4, zero	# sign_info: 0 - undefined. 2048 - negative, 2047 - positive. At the same indicates largest possible number in terms of abosolute value
 	
-	# fix constatnt temporary registers after call
 	li	t3, 10
 	li	t4, '-'
 	li	t5, '0'
@@ -285,7 +324,6 @@ loop_rdint:
 	li	t4, '-'
 	li	t5, '0'
 	li	t6, '9'
-
 	
 bufok_rdint:
 	addi	a1, a1, 1
@@ -336,6 +374,10 @@ chk_sltiu:
 #	addi	s0, s0, 
 #	j	write-error and sth
 
+
+# function: exit
+# Close file and return 0.
+# Assumption: s11 contains File Descriptor
 exit:
 	li	a7, SYS_FCLOSE
 	mv	a0, s11		# file descriptor to close
@@ -343,7 +385,7 @@ exit:
 	
 	li	a7, SYS_EX0
 	ecall
-	
+#==================================================================	
 	
 refill_buffer:		# assumption: s11 contains file descriptor
         # read data syscall
