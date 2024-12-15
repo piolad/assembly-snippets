@@ -188,7 +188,7 @@ no_imm_end:
 
 
 #======================= Processing the arguments =======================
-
+	li	s6,	7
 #=============== 1st argument
 f_x_before_1st_arg:
 	lb	s7, (a1)
@@ -211,7 +211,7 @@ bufok1:
 	# check if returned value is <32
 	li	t1, 32
 	bgtu	a0, t1, syntax_e
-	slli	a0, a0, 7
+	sll	a0, a0, s6
 	add	a6, a6, a0	# encode destination register
 	
 	li	t1, ','
@@ -236,54 +236,15 @@ bufok_a1:
 
 arg1comma_found:
 #================== 2nd argument ================== 
-f_x_before_2nd_arg:
-	lb	s7, (a1)
-	bnez	s7, bufok2
-	call	refill_buffer
-	
-bufok2:
-	addi	a1, a1, 1
-	# if space/tab - skip. if newline -  go to no_args. if anything else - syntax error
-	
-	beq	s7, s2, f_x_before_2nd_arg	# ' '
-	beq	s7, s3, f_x_before_2nd_arg	# '\t'
-	
-	# newline - end of instruction - wrong instruction
-	beq	s7, s4, syntax_e 	# TODO: here we assume only LF, there maybe arror with CRLF ending
-	
-	bne	s7, s9, syntax_e	# not whitespace, can only be 'x' or syntax error
-		
-	call	rd_int12b
-	
-	# check if returned value is <32
-	li	t1, 32
-	bgtu	a0, t1, syntax_e
-	slli	a0, a0, 15
-	add	a6, a6, a0	# encode destination register
-	
-	li	t1, ','
-	beq	s7, t1, arg2comma_found	# maybe char that ended the num was a comma - then ok
-
-f_comma_arg2:	
-	lb	s7, (a1)
-	bnez	s7, bufok_a1
-
-	call	refill_buffer
-	li	t1, ','		# t1 may get invalidated by jalr
-bufok_a2:
-	addi	a1, a1, 1
-	# TODO: optimize branches
-	beq	s7, t1, arg2comma_found
-
-	beq	s7, s2, f_comma_arg2	# ' '
-	beq	s7, s3, f_comma_arg2	# '\t'
-
-	j	syntax_e
-
-arg2comma_found:
+# the same but with different shift
+	li	t1, 15
+	beq	s6, t1, arg3
+	mv	s6, t1
+	j	f_x_before_1st_arg
 
 #================== 3rd argument ================== 
 #	either immediate or register
+arg3:
 	bnez	s1, arg3_immediate
 
 f_x_before_3rd_arg:
