@@ -1,43 +1,60 @@
+#########################################################################
+# 			RISC-V compiler					#
+#	compiles logic and arithmetic intructions in R and I format	#
+#   assumes 'code.asm' to be present - prints code to standard output	#
+#########################################################################
+
+
+#########################################################################
+# constants								#
+#########################################################################
+
+# ========== syscalls ==========
 .eqv	SYS_EX0, 10
 .eqv	SYS_PRT, 4	# print
 .eqv	SYS_FOP, 1024	# open file
 .eqv	SYS_FCLOSE, 57	# close file
 .eqv	SYS_FRD, 63	# read file
 .eqv	RDFLAG, 0	# flag for opening file in read-only mode
-.eqv	BUFLEN, 2	# at least 2 - to also retain "\0"
 
+.eqv	BUFLEN, 2	# at least 2 - to also accomodate for "\0"
 
 .data
+# ========== error messages ==========
 b_ins:	.asciz " # ERROR! Instruction mnemonic not recognized\n"
 b_sntx:	.asciz " # ERROR! Wrong line syntax\n"
 n_args:	.asciz " # ERROR! No arguments provided for instruction\n"
+
 buf:	.space BUFLEN
 fname:	.asciz "code.asm"
 
 .text
-
+#########################################################################
+# one time initializations						#
+#########################################################################
 init:	
-	# for string comparisions
+	# constants used a lot - saved to registers for efficiency
 	li	s2, ' '
 	li	s3, '\t'
 	li	s4, '\n'
 	li	s8, 'i'
 	li	s9, 'x'
-	# minimum number for 4 arguments
+	
+	# minimum number for 4 packed arguments
 	li	s5, 2097152 	# 1 followed by 7*3=21 zeros
 	
 
 openfile:
-	li	a7, SYS_FOP	# system call for open file
-	la	a0, fname	# file name
+	li	a7, SYS_FOP
+	la	a0, fname
 	li	a1, RDFLAG
-	li	a2, 0
+	mv	a2, zero
 	ecall
 	mv 	s11, a0		# save the file descriptor
-	
 	call	refill_buffer	# prefill the buffer
 
-start_read_inst	# pack instructions
+
+start_read_inst:	# pack instructions
 	mv	s0, zero	# instruction input data / 1st input data
 	mv	s1, zero	# for immeidate indication
 read_inst:
@@ -198,9 +215,9 @@ f_comma_arg1:
 	li	t1, ','		# t1 may get invalidated by jalr
 bufok_a1:
 	addi	a1, a1, 1
-	# TODO: optimize branches
+	# TODO: optimize branches, add newline recognition and removal
 	beq	s7, t1, arg1comma_found
-	beq	s7, f_comma_arg1
+	
 	beq	s7, s2, f_comma_arg1	# ' '
 	beq	s7, s3, f_comma_arg1	# '\t'
 
@@ -242,11 +259,11 @@ f_comma_arg2:
 
 	call	refill_buffer
 	li	t1, ','		# t1 may get invalidated by jalr
-bufok_a1:
+bufok_a2:
 	addi	a1, a1, 1
 	# TODO: optimize branches
 	beq	s7, t1, arg2comma_found
-	beq	s7, f_comma_arg2
+
 	beq	s7, s2, f_comma_arg2	# ' '
 	beq	s7, s3, f_comma_arg2	# '\t'
 
@@ -256,7 +273,7 @@ arg2comma_found:
 
 #================== 3rd argument ================== 
 #	either immediate or register
-	bnez	s1, 3rd_arg_immediate
+	bnez	s1, arg3_immediate
 
 f_x_before_3rd_arg:
 	lb	s7, (a1)
@@ -286,7 +303,7 @@ bufok3:
 # todo: here check unntil '\n'. if  '\t' or ' ' - skip. If '#' - go to new line. Otherwise - syntax error
 
 
-3rd_arg_immediate:
+arg3_immediate:
 
 # here another wi
 
@@ -363,6 +380,7 @@ ret_rdint:
 	
 	
 chk_sltiu:
+
 	# (edge case of instruction interpretation)
 	# check if s7 is equal to 'u'
 	# and if current content of s0 is stli
@@ -410,6 +428,7 @@ refill_buffer:
 #===========================================================
 
 skip_to_nline:
+	
 # todo: implement this
 
 #===========================================================
