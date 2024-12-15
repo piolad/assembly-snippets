@@ -309,12 +309,34 @@ bufok3:
 	
 	mv	a0, s4
 	li	a7, 11
+	ecall
 	
 	call 	skip_to_nline
 	j	start_read_inst
 
+
+# first find a non-empty space
 arg3_immediate:
-	j exit
+	lb	s7, (a1)
+	bnez	s7, bufok_a3i
+
+	call	refill_buffer
+bufok_a3i:
+	beq	s7, s2, cont_loop_a3i	#  ' '
+	beq	s7, s3, cont_loop_a3i	#  '\t'
+	beq	s7, s4, syntax_e	#  '\n'
+	
+	call	rd_int12b
+	slli	a0, a0, 20
+	add	a6, a6, a0	# encode destination register
+	
+	call 	skip_to_nline
+	j	start_read_inst
+
+cont_loop_a3i:
+	addi	a1, a1, 1
+	j	arg3_immediate
+	
 
 
 
