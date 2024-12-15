@@ -3,13 +3,13 @@
 #	compiles logic and arithmetic intructions in R and I format	#
 #   assumes 'code.asm' to be present - prints code to standard output	#
 #########################################################################
+# author - Piotr Łądkowski
+
 
 
 #########################################################################
-# constants								#
+# constants and preinit data						#
 #########################################################################
-
-# ========== syscalls ==========
 .eqv	SYS_EX0, 10
 .eqv	SYS_PRT, 4	# print
 .eqv	SYS_HEXPRT, 34	# print int in hex
@@ -21,18 +21,20 @@
 .eqv	BUFLEN, 2	# at least 2 - to also accomodate for "\0"
 
 .data
+buf:	.space BUFLEN
+fname:	.asciz "code.asm"
+
 # ========== error messages ==========
 b_ins:	.asciz " # ERROR! Instruction mnemonic not recognized\n"
 b_sntx:	.asciz " # ERROR! Wrong line syntax\n"
 n_args:	.asciz " # ERROR! No arguments provided for instruction\n"
 
-buf:	.space BUFLEN
-fname:	.asciz "code.asm"
-
+#########################################################################
+# .text section								#
+#########################################################################
 .text
-#########################################################################
-# one time initializations						#
-#########################################################################
+
+# ========================== one time settings ==========================
 init:	
 	# constants used a lot - saved to registers for efficiency
 	li	s2, ' '
@@ -44,7 +46,6 @@ init:
 	# minimum number for 4 packed arguments
 	li	s5, 2097152 	# 1 followed by 7*3=21 zeros
 	
-
 openfile:
 	li	a7, SYS_FOP
 	la	a0, fname
@@ -55,41 +56,47 @@ openfile:
 	call	refill_buffer	# prefill the buffer
 
 
-start_read_inst:	# pack instructions
+# ======================== pack instruction to s0 ========================
+# all instruction mnemonics (except 1 - stliu) are 4 characters long 
+# - so they can be packed onto a register.
+# ========================================================================
+start_read_inst:	# reset data - before loop
 	mv	s0, zero	# instruction input data / 1st input data
-	mv	s1, zero	# for immeidate indication
-read_inst:
-	lb	s7, (a1)
-	bnez	s7, bufok
+	mv	s1, zero	# for immeidate indication - used later
 	
-	# refill buffer if empty
-	call    refill_buffer
+read_inst:		# loop for packing the mnemonic
+	lb	s7, (a1)
+	bnez	s7, bufok	# if char is not 0 - continue 
+	call    refill_buffer	# if 0 - end of buffer is reached
 bufok:
-	addi	a1, a1, 1
-	# check if whitespace character
+	addi	a1, a1, 1	# advance buf address
+	
+	# whitespace handling - skip if before mnemonic or interpret mnemonic
 	beq	s7, s2, whitespaceChar	# ' '
 	beq	s7, s3, whitespaceChar	# '\t'
 	
-	# newline
-	beq	s7, s4, newlineChar	# TODO: here we assume only LF, there maybe arror with CRLF ending
+	# newline - skip if before mnemonic - otherwise indicate error - no arguments
+	beq	s7, s4, newlineChar	# TODO: here we assume only LF
 	
 	# if instruction > bin(100000 00000000 00000000), 4 instructions already packed
 	# so either instruction is wrong or sltiu edge case
 	bgt	s0, s5, chk_sltiu
 	
-	# also add converting to lowercase and removing weird characters (e.g. CR, etc)
+	#todo: also add converting to lowercase and removing weird characters (e.g. CR, etc)
+	
 	# pack up to 4 bytes into 1 32bit register
 	slli	s0, s0, 7
 	add	s0, s0, s7
 	
-	j	read_inst
+	j	read_inst # continue with loop
+# ============================= end of loop
 
 newlineChar:
 	# if instruction is emty - skip char
 	# otherwise error - instruction without arguments
 	beqz	s0, read_inst
 	# write error and jump
-	#todo
+	# todo
 
 whitespaceChar:
 	beqz	s0, read_inst 	# if instruction empty - skip char
@@ -97,17 +104,18 @@ whitespaceChar:
 	# otherwise instruciton ready for interpretation
 
 interpret_instruction:
-	li	a6, 51		# encoded instruction - initialized to bin(0110011)
-	mv	t2, zero 	# for last character - 'i' check
+	li	a6, 51		# for encoded instruction - initialized to bin(0110011) (opcode = OP)
 	
 	mv	t5, zero	# for func3 code
+	
 	# check if last letter is 'i'
-	andi	t2, s0, 127 	# bin(7x'1') - get last char in t2
+	andi	t2, s0, 127 	# mask with bin(7x'1') - get last char in t2
 	bne	t2, s8, no_imm	
 	
-	addi	a6, a6, -32	# remove bin(100000) - indicate immediate operation 
+	# otherwise - 'i' is present - remove 
+	addi	a6, a6, -32	# remove bin(100000) - change opcode to bin(0010011) (opcode = OP-IMM)
 	srli	s0, s0, 7 	# shift by 7 - get word without 'i'
-	li	s1, 1
+	li	s1, 1	
 	
 no_imm:
 	# add
@@ -177,13 +185,15 @@ no_imm_end:
 
 
 	mv	s0, zero	# reset s0 for first argument
-	
-#================== 1st argument ================== 
+
+
+#======================= Processing the arguments =======================
+
+#=============== 1st argument
 f_x_before_1st_arg:
 	lb	s7, (a1)
 	bnez	s7, bufok1
 	call	refill_buffer
-	
 bufok1:
 	addi	a1, a1, 1
 	# if space/tab - skip. if newline -  go to no_args. if anything else - syntax error
