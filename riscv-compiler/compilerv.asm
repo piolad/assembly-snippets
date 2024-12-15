@@ -91,6 +91,30 @@ bufok:
 	j	read_inst # continue with loop
 # ============================= end of loop
 
+chk_sltiu:
+	# edge case of instruction interpretation - only mnemonic with 5 letters
+	# check if s7 is equal to 'u' and the following character is a whitespace
+	# and if current content of s0 is stli
+	# otherwise - write error and go to next line
+	li	t1, 242956905
+	li	t2, 'u'
+	
+	bne	s7, t2, bad_instr
+	lb	s7, (a1)
+	bnez	s7, chk_wspc_sltiu
+	call	refill_buffer
+chk_wspc_sltiu:
+	addi	a1, a1, 1
+	li	a6, 19	# change opcode to bin(0010011) (opcode = OP-IMM)
+	li	t5, 3	# funct3 is bin(011)
+	li	s1, 1	# immediate
+	beq	s7, s2, no_imm_end	# ' '
+	beq	s7, s3, no_imm_end	# '\t'
+	j	bad_instr
+#=====================================================
+
+
+
 newlineChar:
 	# if instruction is emty - skip char
 	# otherwise error - instruction without arguments
@@ -188,7 +212,7 @@ no_imm_end:
 
 
 #======================= Processing the arguments =======================
-	li	s6,	7
+	li	s6,	7	# preset shift length to 7 - for the first argument
 #=============== 1st argument
 f_x_before_1st_arg:
 	lb	s7, (a1)
@@ -236,7 +260,7 @@ bufok_a1:
 
 arg1comma_found:
 #================== 2nd argument ================== 
-# the same but with different shift
+# the same as for the first argument - with the shift of 15
 	li	t1, 15
 	beq	s6, t1, arg3
 	mv	s6, t1
@@ -247,6 +271,7 @@ arg1comma_found:
 arg3:
 	bnez	s1, arg3_immediate
 
+#=============== 3rd arg is register:
 f_x_before_3rd_arg:
 	lb	s7, (a1)
 	bnez	s7, bufok3
@@ -286,7 +311,7 @@ bufok3:
 	j	start_read_inst
 
 
-# first find a non-empty space
+#=============== 3rd arg is immediate:
 arg3_immediate:
 	#ebreak
 	lb	s7, (a1)
@@ -318,6 +343,7 @@ cont_loop_a3i:
 	addi	a1, a1, 1
 	j	arg3_immediate
 	
+
 
 
 
@@ -388,22 +414,8 @@ end_rdint:
 	sub	a0, zero, a0
 ret_rdint:
 	ret
-
 #==================================================================	
 	
-	
-chk_sltiu:
-
-	# (edge case of instruction interpretation)
-	# check if s7 is equal to 'u'
-	# and if current content of s0 is stli
-	# otherwise - write error and go to next line
-#	bne	s0, __, label
-#	bne	s7, __, label
-#	addi	s0, s0, 
-#	j	write-error and sth
-
-
 # function: exit
 # Close file and return 0.
 # 	Assumption: s11 contains File Descriptor
@@ -440,6 +452,8 @@ refill_buffer:
         ret
 #===========================================================
 
+# function: skip_to_nline
+# find next line and restart the instruciton loading from beginning
 skip_to_nline:
 #	ebreak
 	bnez	s7, bufok_nline
@@ -456,8 +470,6 @@ bufok_nline:
 nlinefoun:
 	lb	s7, (a1)
 	ret
-	
-
 #===========================================================
 # wrong instruciton - print info and go to newline or end
 bad_instr:
@@ -466,8 +478,6 @@ bad_instr:
 	ecall
 	call	skip_to_nline
 	j	start_read_inst
-f_nline:
-	# todo: what if crlf is used?
 
 
 no_args:
@@ -485,7 +495,7 @@ syntax_e:
 	j	start_read_inst	
 	
 	
-
+# copy of the content of code.asm - for inspecting the resulting codes
    sub   x1,x3,x5
  add  x1, x7, x3
  sll x12, x5, x1
@@ -512,3 +522,5 @@ srli x2, x4, 7
 srai x10, x20,12
 ori x21, x3, 2047
 andi x0, x1, 124
+
+sltiu x8, x1, 3
