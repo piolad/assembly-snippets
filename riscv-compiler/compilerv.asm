@@ -317,6 +317,7 @@ bufok3:
 
 # first find a non-empty space
 arg3_immediate:
+	#ebreak
 	lb	s7, (a1)
 	bnez	s7, bufok_a3i
 
@@ -329,6 +330,15 @@ bufok_a3i:
 	call	rd_int12b
 	slli	a0, a0, 20
 	add	a6, a6, a0	# encode destination register
+	
+	
+	mv	a0, a6
+	li	a7, SYS_HEXPRT
+	ecall
+	
+	mv	a0, s4
+	li	a7, 11
+	ecall
 	
 	call 	skip_to_nline
 	j	start_read_inst
@@ -517,3 +527,17 @@ srl x2, x4, x10
 sra x10, x20,x31
 or x21, x3, x1
 and x0, x1, x3
+
+
+
+
+addi  x1, x7, 12
+ slli x12, x5, 10
+ slti x9, x0, 45
+
+xori x1, x2, 1234 
+srli x2, x4, 7  
+
+srai x10, x20,12
+ori x21, x3, 2047
+andi x0, x1, 124
