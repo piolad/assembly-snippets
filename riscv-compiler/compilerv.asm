@@ -29,6 +29,8 @@ b_ins:	.asciz " # ERROR! Instruction mnemonic not recognized\n"
 b_sntx:	.asciz " # ERROR! Wrong line syntax\n"
 n_args:	.asciz " # ERROR! No arguments provided for instruction\n"
 
+
+
 #########################################################################
 # .text section								#
 #########################################################################
@@ -75,14 +77,14 @@ bufok:
 	beq	s7, s2, whitespaceChar	# ' '
 	beq	s7, s3, whitespaceChar	# '\t'
 	
-	# newline - skip if before mnemonic - otherwise indicate error - no arguments
+	# newline - skip if before mnemonic - otherwise no arguments - error
 	beq	s7, s4, newlineChar	# TODO: here we assume only LF
 	
-	# if instruction > bin(100000 00000000 00000000), 4 instructions already packed
-	# so either instruction is wrong or sltiu edge case
+	# if instruction > bin(100000 00000000 00000000), 4 instructions
+	# already packed so either instruction is wrong or sltiu edge case
 	bgt	s0, s5, chk_sltiu
 	
-	#todo: also add converting to lowercase and removing weird characters (e.g. CR, etc)
+	# todo: also add converting to lowercase and removing weird characters (e.g. CR, etc)
 	
 	# pack up to 4 bytes into 1 32bit register
 	slli	s0, s0, 7
@@ -118,15 +120,18 @@ chk_wspc_sltiu:
 newlineChar:
 	# if instruction is emty - skip char
 	# otherwise error - instruction without arguments
+	# todo: move the code to remove 1 jump (maybe)
 	beqz	s0, read_inst
-	# write error and jump
-	# todo
+	j	bad_instr
 
 whitespaceChar:
 	beqz	s0, read_inst 	# if instruction empty - skip char
 	
 	# otherwise instruciton ready for interpretation
 
+
+# ============= interpret packed mnemonic to binary ==============
+# result: form without arguments - image reflects  x0, x0, x0 OR 0
 interpret_instruction:
 	li	a6, 51		# for encoded instruction - initialized to bin(0110011) (opcode = OP)
 	
@@ -205,7 +210,7 @@ no_imm_end:
 	# add func3
 	slli	t5, t5, 12
 	add	a6, a6, t5
-	
+#========================================================================
 
 
 	mv	s0, zero	# reset s0 for first argument
