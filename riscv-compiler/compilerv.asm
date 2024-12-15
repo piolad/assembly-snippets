@@ -12,9 +12,10 @@
 # ========== syscalls ==========
 .eqv	SYS_EX0, 10
 .eqv	SYS_PRT, 4	# print
+.eqv	SYS_HEXPRT, 34	# print int in hex
 .eqv	SYS_FOP, 1024	# open file
 .eqv	SYS_FCLOSE, 57	# close file
-.eqv	SYS_FRD, 63	# read file
+.eqv	SYS_FRD, 63	# read files
 .eqv	RDFLAG, 0	# flag for opening file in read-only mode
 
 .eqv	BUFLEN, 2	# at least 2 - to also accomodate for "\0"
@@ -152,7 +153,7 @@ no_imm:
 	# only left possibilities sub, sra/srai
 	# they all have 0100000 in funct7
 	li 	t4, 1073741824	# 1 followed by 30 zeros
-	add	a6, a6, t4	
+	add	a6, a6, t4
 	
 	# sra
 	li	t3, 1898849
@@ -302,10 +303,19 @@ bufok3:
 
 # todo: here check unntil '\n'. if  '\t' or ' ' - skip. If '#' - go to new line. Otherwise - syntax error
 
+	mv	a0, a6
+	li	a7, SYS_HEXPRT
+	ecall
+	
+	mv	a0, s4
+	li	a7, 11
+	
+	call 	skip_to_nline
+	j	start_read_inst
 
 arg3_immediate:
+	j exit
 
-# here another wi
 
 
 #===============================================================#
@@ -428,8 +438,22 @@ refill_buffer:
 #===========================================================
 
 skip_to_nline:
+#	ebreak
+	bnez	s7, bufok_nline
 	
-# todo: implement this
+	# refill buffer if empty
+	mv	s10, ra
+	call    refill_buffer
+	mv	ra, s10
+bufok_nline:
+	beq	s7, s4, nlinefoun	# '\n'
+	addi	a1, a1, 1
+	lb	s7, (a1)
+	j	skip_to_nline
+nlinefoun:
+	lb	s7, (a1)
+	ret
+	
 
 #===========================================================
 # wrong instruciton - print info and go to newline or end
@@ -456,3 +480,18 @@ syntax_e:
 	ecall
 	call	skip_to_nline
 	j	start_read_inst	
+	
+	
+
+   sub   x1,x3,x5
+ add  x1, x7, x3
+ sll x12, x5, x1
+ slt x9, x0, x0
+sltu x9, x12, x0
+
+xor x1, x2, x3 
+srl x2, x4, x10  
+
+sra x10, x20,x31
+or x21, x3, x1
+and x0, x1, x3
