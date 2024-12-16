@@ -231,13 +231,16 @@ bufok1:
 	bne	s7, t1, syntax_e	# not whitespace, can only be 'x' or syntax error
 		
 	call	rd_int12b
-	
+#	ebreak
 	# check if returned value between 0 and 32
 	li	t1, 32
 	bgtu	a0, t1, syntax_e
 	bltz	a0, syntax_e
 	sll	a0, a0, s6
-	add	a6, a6, a0	# encode destination register
+	add	a6, a6, a0	# register
+	
+	li	t1, 20	# if shift was alrady set to 20 - 3rd argument just got encoded. Instruction is finihsed
+	beq	s6, t1, inst_end
 	
 	li	t1, ','
 	beq	s7, t1, arg1comma_found	# maybe char that ended the num was a comma - then ok
@@ -262,45 +265,21 @@ arg1comma_found:
 #================== 2nd argument ================== 
 # the same as for the first argument - with the shift of 15
 	li	t1, 15
-	beq	s6, t1, arg3
+	bge	s6, t1, arg3
 	mv	s6, t1
 	j	f_x_before_1st_arg
 
 #================== 3rd argument ================== 
 #	either immediate or register
 arg3:
+	li	t1, 20
+	mv	s6, t1
 	bnez	s1, arg3_immediate
+	
+	j	f_x_before_1st_arg
 
 #=============== 3rd arg is register:
-f_x_before_3rd_arg:
-	lb	s7, (a1)
-	bnez	s7, bufok3
-	call	refill_buffer
-	
-bufok3:
-	addi	a1, a1, 1
-	# if space/tab - skip. if newline -  go to no_args. if anything else - syntax error
-	
-	beq	s7, s2, f_x_before_3rd_arg	# ' '
-	beq	s7, s3, f_x_before_3rd_arg	# '\t'
-	
-	# newline - end of instruction - wrong instruction
-	beq	s7, s4, syntax_e 	# TODO: here we assume only LF, there maybe arror with CRLF ending
-	
-	li	t1, 'x'
-	bne	s7, t1, syntax_e	# not whitespace, can only be 'x' or syntax error
-	
-	li	a5, 1
-	call	rd_int12b
-	
-	# check if returned value is <32
-	li	t1, 32
-	bgtu	a0, t1, syntax_e
-	slli	a0, a0, 20
-	add	a6, a6, a0	# encode destination register
-
-# todo: here check unntil '\n'. if  '\t' or ' ' - skip. If '#' - go to new line. Otherwise - syntax error
-
+inst_end:
 	mv	a0, a6
 	li	a7, SYS_HEXPRT
 	ecall
@@ -503,6 +482,7 @@ no_args:
 	j	start_read_inst
 
 syntax_e:
+#	ebreak
 	la 	a0, b_sntx
 	li	a7, SYS_PRT
 	ecall
@@ -511,6 +491,8 @@ syntax_e:
 	
 	
 # copy of the content of code.asm - for inspecting the resulting codes
+#slti x9, x, 45
+
    sub   x1,x3,x5
  add  x1, x7, x3
  sll x12, x5, x1
@@ -538,4 +520,6 @@ srai x10, x20,12
 ori x21, x3, 2047
 andi x0, x1, 124
 
-sltu x8, x1, x3
+#slti x8, x1, x3
+
+#slti x9, x, 45
