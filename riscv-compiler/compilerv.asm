@@ -43,7 +43,6 @@ init:
 	li	s3, '\t'
 	li	s4, '\n'
 	li	s8, 'i'
-	li	s9, 'x'
 	
 	# minimum number for 4 packed arguments
 	li	s5, 2097152 	# 1 followed by 7*3=21 zeros
@@ -65,6 +64,7 @@ openfile:
 start_read_inst:	# reset data - before loop
 	mv	s0, zero	# instruction input data / 1st input data
 	mv	s1, zero	# for immeidate indication - used later
+	mv	a5, zero
 	
 read_inst:		# loop for packing the mnemonic
 	lb	s7, (a1)
@@ -100,7 +100,7 @@ chk_sltiu:
 	# otherwise - write error and go to next line
 	li	t1, 242956905
 	li	t2, 'u'
-	
+		
 	bne	s7, t2, bad_instr
 	lb	s7, (a1)
 	bnez	s7, chk_wspc_sltiu
@@ -210,10 +210,6 @@ no_imm_end:
 	# add func3
 	slli	t5, t5, 12
 	add	a6, a6, t5
-#========================================================================
-
-
-	mv	s0, zero	# reset s0 for first argument
 
 
 #======================= Processing the arguments =======================
@@ -233,26 +229,27 @@ bufok1:
 	# newline - end of instruction - wrong instruction
 	beq	s7, s4, no_args 	# TODO: here we assume only LF, there maybe arror with CRLF ending
 	
-	bne	s7, s9, syntax_e	# not whitespace, can only be 'x' or syntax error
+	li	t1, 'x'
+	bne	s7, t1, syntax_e	# not whitespace, can only be 'x' or syntax error
 		
 	call	rd_int12b
 	
-	# check if returned value is <32
+	# check if returned value between 0 and 32
 	li	t1, 32
 	bgtu	a0, t1, syntax_e
+	bltz	a0, syntax_e
 	sll	a0, a0, s6
 	add	a6, a6, a0	# encode destination register
 	
 	li	t1, ','
 	beq	s7, t1, arg1comma_found	# maybe char that ended the num was a comma - then ok
 
-
 f_comma_arg1:	
 	lb	s7, (a1)
 	bnez	s7, bufok_a1
 
 	call	refill_buffer
-	li	t1, ','		# t1 may get invalidated by jalr
+	li	t1, ','		# t1 may get invalidated by function call
 bufok_a1:
 	addi	a1, a1, 1
 	# TODO: optimize branches, add newline recognition and removal
@@ -292,8 +289,10 @@ bufok3:
 	# newline - end of instruction - wrong instruction
 	beq	s7, s4, syntax_e 	# TODO: here we assume only LF, there maybe arror with CRLF ending
 	
-	bne	s7, s9, syntax_e	# not whitespace, can only be 'x' or syntax error
-		
+	li	t1, 'x'
+	bne	s7, t1, syntax_e	# not whitespace, can only be 'x' or syntax error
+	
+	li	a5, 1
 	call	rd_int12b
 	
 	# check if returned value is <32
@@ -311,10 +310,9 @@ bufok3:
 	mv	a0, s4
 	li	a7, 11
 	ecall
-	
+
 	call 	skip_to_nline
 	j	start_read_inst
-
 
 #=============== 3rd arg is immediate:
 arg3_immediate:
@@ -328,6 +326,7 @@ bufok_a3i:
 	beq	s7, s3, cont_loop_a3i	#  '\t'
 	beq	s7, s4, syntax_e	#  '\n'
 	
+	li	a5, 1
 	call	rd_int12b
 	slli	a0, a0, 20
 	add	a6, a6, a0	# encode destination register
@@ -368,7 +367,7 @@ rd_int12b:
 	li	t4, '-'
 	li	t5, '0'
 	li	t6, '9'
-	
+	mv	s9, zero	# number of letters read
 loop_rdint:
 	lb	s7, (a1)
 	bnez	s7, bufok_rdint
@@ -377,7 +376,7 @@ loop_rdint:
 	mv	s10, ra		# non-leaf procedure - save the return address
 	call	refill_buffer
 	mv	ra, s10
-	
+
 	# fix constatnt temporary registers after call
 	li	t3, 10
 	li	t4, '-'
@@ -399,6 +398,7 @@ convert_num:
 	add	a3, a3, s7
 	sub	a3, a3, t5
 	
+	addi	s9, s9, 1
 	# range check:
 	bgtu	a3, a4, syntax_e
 	
@@ -412,6 +412,7 @@ check_minus:
 	j 	loop_rdint	# skip minus - go to loop beginnig
 	
 end_rdint:
+	beqz	s9, syntax_e
 	mv	a0, a3
 	addi	a4, a4, -2047
 	
@@ -420,7 +421,8 @@ end_rdint:
 ret_rdint:
 	ret
 #==================================================================	
-	
+
+
 # function: exit
 # Close file and return 0.
 # 	Assumption: s11 contains File Descriptor
@@ -446,13 +448,20 @@ refill_buffer:
         addi    a2, a2, -1     # reserve space for trailing '\0'
         ecall
 
-        # If no data read, return -1
-        blez    a0, exit	# this will validatae ra but we do not care - this is only for exiting
-
+        # if data was read - add \0 at ennd and reutrn
+        bgtz    a0, refill_ok
+        
+        beqz	s0, exit	# jump to exit if s0 == 0 (instruction packing did not start yet)
+        beqz	a5, syntax_e	# if s0 != 0 AND a5 = 0 - final instruction is not full
+	# edge case - final instruction ok
+	li	s7, '\n'
+	ret
+        
+refill_ok:
         # Add '\0' after the last byte
         la      t0, buf        # t0 = address of buf
         add     t0, t0, a0     # t0 = buf + (number_of_bytes_read)
-        sb      zero, 0(t0)    # *(buf + a0) = '\0'
+        sb      zero, (t0)    # *(buf + a0) = '\0'
        	lb	s7, (a1)
         ret
 #===========================================================
@@ -460,6 +469,9 @@ refill_buffer:
 # function: skip_to_nline
 # find next line and restart the instruciton loading from beginning
 skip_to_nline:
+	# reset the indicators of instruction and the instruction ending
+	mv	s0, zero
+	mv	a5, zero
 #	ebreak
 	bnez	s7, bufok_nline
 	
@@ -528,4 +540,4 @@ srai x10, x20,12
 ori x21, x3, 2047
 andi x0, x1, 124
 
-sltiu x8, x1, 3
+sltu x8, x1, x3
