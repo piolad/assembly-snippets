@@ -116,7 +116,6 @@ chk_wspc_sltiu:
 #=====================================================
 
 
-
 newlineChar:
 	# if instruction is emty - skip char
 	# otherwise error - instruction without arguments
@@ -126,15 +125,14 @@ newlineChar:
 
 whitespaceChar:
 	beqz	s0, read_inst 	# if instruction empty - skip char
-	
 	# otherwise instruciton ready for interpretation
 
 
-# ============= interpret packed mnemonic to binary ==============
-# result: form without arguments - image reflects  x0, x0, x0 OR 0
+# ============= interpret packed mnemonic to binary ============== #
+#								   #
+# result: form without arguments - image reflects  x0, x0, x0 OR 0 #
 interpret_instruction:
 	li	a6, 51		# for encoded instruction - initialized to bin(0110011) (opcode = OP)
-	
 	mv	t5, zero	# for func3 code
 	
 	# check if last letter is 'i'
