@@ -64,7 +64,7 @@ openfile:
 start_read_inst:	# reset data - before loop
 	mv	s0, zero	# instruction input data / 1st input data
 	mv	s1, zero	# for immeidate indication - used later
-	mv	a5, zero
+	li	a5, 3
 	
 read_inst:		# loop for packing the mnemonic
 	lb	s7, (a1)
@@ -78,14 +78,20 @@ bufok:
 	beq	s7, s3, whitespaceChar	# '\t'
 	
 	# newline - skip if before mnemonic - otherwise no arguments - error
-	beq	s7, s4, newlineChar	# TODO: here we assume only LF
+	beq	s7, s4, newlineChar
 	
 	# if instruction > bin(100000 00000000 00000000), 4 instructions
 	# already packed so either instruction is wrong or sltiu edge case
 	bgt	s0, s5, chk_sltiu
 	
-	# todo: also add converting to lowercase and removing weird characters (e.g. CR, etc)
-	
+	# to lowercase conversion:
+	li	t0, 'A'
+	blt	s0, t0, skip_lowercase
+	li	t0, 'Z'
+	bgt	s0, t0, skip_lowercase
+	addi	s0, s0, 32
+
+skip_lowercase:	
 	# pack up to 4 bytes into 1 32bit register
 	slli	s0, s0, 7
 	add	s0, s0, s7
@@ -119,9 +125,7 @@ chk_wspc_sltiu:
 newlineChar:
 	# if instruction is emty - skip char
 	# otherwise error - instruction without arguments
-	# todo: move the code to remove 1 jump (maybe)
-	beqz	s0, read_inst
-	j	bad_instr
+	bnez	s0, bad_instr
 
 whitespaceChar:
 	beqz	s0, read_inst 	# if instruction empty - skip char
@@ -213,19 +217,19 @@ no_imm_end:
 #======================= Processing the arguments =======================
 	li	s6,	7	# preset shift length to 7 - for the first argument
 #=============== 1st argument
-f_x_before_1st_arg:
+find_x_before_arg:
 	lb	s7, (a1)
-	bnez	s7, bufok1
+	bnez	s7, bufok_args
 	call	refill_buffer
-bufok1:
+bufok_args:
 	addi	a1, a1, 1
 	# if space/tab - skip. if newline -  go to no_args. if anything else - syntax error
 	
-	beq	s7, s2, f_x_before_1st_arg	# ' '
-	beq	s7, s3, f_x_before_1st_arg	# '\t'
+	beq	s7, s2, find_x_before_arg	# ' '
+	beq	s7, s3, find_x_before_arg	# '\t'
 	
 	# newline - end of instruction - wrong instruction
-	beq	s7, s4, no_args 	# TODO: here we assume only LF, there maybe arror with CRLF ending
+	beq	s7, s4, no_args 	
 	
 	li	t1, 'x'
 	bne	s7, t1, syntax_e	# not whitespace, can only be 'x' or syntax error
@@ -248,12 +252,12 @@ bufok1:
 f_comma_arg1:	
 	lb	s7, (a1)
 	bnez	s7, bufok_a1
-
+	
+	addi	a5, a5, -1
 	call	refill_buffer
 	li	t1, ','		# t1 may get invalidated by function call
 bufok_a1:
 	addi	a1, a1, 1
-	# TODO: optimize branches, add newline recognition and removal
 	beq	s7, t1, arg1comma_found
 	
 	beq	s7, s2, f_comma_arg1	# ' '
@@ -267,7 +271,7 @@ arg1comma_found:
 	li	t1, 15
 	bge	s6, t1, arg3
 	mv	s6, t1
-	j	f_x_before_1st_arg
+	j	find_x_before_arg
 
 #================== 3rd argument ================== 
 #	either immediate or register
@@ -275,10 +279,9 @@ arg3:
 	li	t1, 20
 	mv	s6, t1
 	bnez	s1, arg3_immediate
-	
-	j	f_x_before_1st_arg
 
 #=============== 3rd arg is register:
+	j	find_x_before_arg	# same as for 1 and 2 with small adjustments
 inst_end:
 	mv	a0, a6
 	li	a7, SYS_HEXPRT
@@ -303,11 +306,10 @@ bufok_a3i:
 	beq	s7, s3, cont_loop_a3i	#  '\t'
 	beq	s7, s4, syntax_e	#  '\n'
 	
-	li	a5, 1
+	addi	a5, a5, -1
 	call	rd_int12b
 	slli	a0, a0, 20
 	add	a6, a6, a0	# encode destination register
-	
 	
 	mv	a0, a6
 	li	a7, SYS_HEXPRT
@@ -429,7 +431,7 @@ refill_buffer:
         bgtz    a0, refill_ok
         
         beqz	s0, exit	# jump to exit if s0 == 0 (instruction packing did not start yet)
-        beqz	a5, syntax_e	# if s0 != 0 AND a5 = 0 - final instruction is not full
+        bnez	a5, syntax_e	# if s0 != 0 AND a5 != 0 - final instruction is not full
 	# edge case - final instruction ok
 	li	s7, '\n'
 	ret
@@ -448,7 +450,7 @@ refill_ok:
 skip_to_nline:
 	# reset the indicators of instruction and the instruction ending
 	mv	s0, zero
-	mv	a5, zero
+	li	a5, 3
 #	ebreak
 	bnez	s7, bufok_nline
 	
