@@ -1,5 +1,3 @@
-slti x9, x, 45
-
    sub   x1,x3,x5
  add  x1, x7, x3
  sll x12, x5, x1
@@ -25,8 +23,5 @@ srli x2, x4, 7
 
 srai x10, x20,12
 ori x21, x3, 2047
-andi x0, x1, 124
-
-slti x8, x1, x3
-
-slti x9, x, 45
+andi x0, x1, --
+andi x0, x1, x1

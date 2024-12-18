@@ -18,16 +18,43 @@
 .eqv	SYS_FRD, 63	# read files
 .eqv	RDFLAG, 0	# flag for opening file in read-only mode
 
-.eqv	BUFLEN, 2	# at least 2 - to also accomodate for "\0"
+.eqv	BUFLEN, 512	# at least 2 - to also accomodate for "\0"
+
+.eqv	min24bitnumer, 0x1000000	# 1 followed by 8*3=24 zeros
 
 .data
+inst_table:	# instruction and combined func3-func7 code
+	.ascii	"add\0"	
+	.word	0
+	.ascii	"and\0"
+	.word	7
+	.ascii	"or\0\0" # to keep same length
+	.word	6
+	.ascii	"sll\0"
+	.word	1
+	.ascii	"slt\0"
+	.word	2
+	.ascii	"sltu"
+	.word	3
+	.ascii	"sra\0"
+	.half	5
+	.half	1
+	.ascii	"srl\0"
+	.word	5
+	.ascii	"xor\0"
+	.word	4
+	.ascii	"sub\0"
+	.half	0
+tb_end: .half	1
+	
+	
 buf:	.space BUFLEN
 fname:	.asciz "code.asm"
 
 # ========== error messages ==========
-b_ins:	.asciz " # ERROR! Instruction mnemonic not recognized\n"
+b_ins:	.asciz " # ERROR! Instruction mnemonic not recognized or instruction not complete\n"
 b_sntx:	.asciz " # ERROR! Wrong line syntax\n"
-n_args:	.asciz " # ERROR! No arguments provided for instruction\n"
+n_args:	.asciz " # ERROR! Not enough arguments\n"
 
 
 
@@ -36,16 +63,12 @@ n_args:	.asciz " # ERROR! No arguments provided for instruction\n"
 #########################################################################
 .text
 
-# ========================== one time settings ==========================
+# ========================== one time settings ======================== #
 init:	
-	# constants used a lot - saved to registers for efficiency
+	# constants used a lot
 	li	s2, ' '
 	li	s3, '\t'
 	li	s4, '\n'
-	li	s8, 'i'
-	
-	# minimum number for 4 packed arguments
-	li	s5, 2097152 	# 1 followed by 7*3=21 zeros
 	
 openfile:
 	li	a7, SYS_FOP
@@ -58,21 +81,19 @@ openfile:
 
 
 # ======================== pack instruction to s0 ========================
-# all instruction mnemonics (except 1 - stliu) are 4 characters long 
+# all instruction mnemonics (except 1 - stliu) are 4 characters long
 # - so they can be packed onto a register.
 # ========================================================================
 start_read_inst:	# reset data - before loop
 	mv	s0, zero	# instruction input data / 1st input data
-	mv	s1, zero	# for immeidate indication - used later
-	li	a5, 3
+	mv	s1, zero	# for immeidate flag
+	li	a5, 3		# (3-a5) - number of arguments read
+	
+	mv	s8, zero	# shift amount
 	
 read_inst:		# loop for packing the mnemonic
-	lb	s7, (a1)
-	bnez	s7, bufok	# if char is not 0 - continue 
-	call    refill_buffer	# if 0 - end of buffer is reached
-bufok:
-	addi	a1, a1, 1	# advance buf address
-	
+	call	getch
+	bltz	s7, inst_rd_eof
 	# whitespace handling - skip if before mnemonic or interpret mnemonic
 	beq	s7, s2, whitespaceChar	# ' '
 	beq	s7, s3, whitespaceChar	# '\t'
@@ -80,9 +101,10 @@ bufok:
 	# newline - skip if before mnemonic - otherwise no arguments - error
 	beq	s7, s4, newlineChar
 	
-	# if instruction > bin(100000 00000000 00000000), 4 instructions
+	# if instruction > bin(1 00000000 00000000 00000000), 4 instructions
 	# already packed so either instruction is wrong or sltiu edge case
-	bgt	s0, s5, chk_sltiu
+	li	t0, min24bitnumer
+	bge	s0, t0, chk_sltiu
 	
 	# to lowercase conversion:
 	li	t0, 'A'
@@ -93,12 +115,12 @@ bufok:
 
 skip_lowercase:	
 	# pack up to 4 bytes into 1 32bit register
-	slli	s0, s0, 7
+	sll	s7, s7, s8
 	add	s0, s0, s7
+	addi,	s8, s8, 8
 	
 	j	read_inst # continue with loop
 # ============================= end of loop
-
 chk_sltiu:
 	# edge case of instruction interpretation - only mnemonic with 5 letters
 	# check if s7 is equal to 'u' and the following character is a whitespace
@@ -108,16 +130,17 @@ chk_sltiu:
 	li	t2, 'u'
 		
 	bne	s7, t2, bad_instr
-	lb	s7, (a1)
-	bnez	s7, chk_wspc_sltiu
-	call	refill_buffer
-chk_wspc_sltiu:
-	addi	a1, a1, 1
+	
+	call 	getch
+	bltz	s7, bad_instr
+	
 	li	a6, 19	# change opcode to bin(0010011) (opcode = OP-IMM)
 	li	t5, 3	# funct3 is bin(011)
+	slli	t5, t5, 12
+	add	a6, a6, t5
 	li	s1, 1	# immediate
-	beq	s7, s2, no_imm_end	# ' '
-	beq	s7, s3, no_imm_end	# '\t'
+	beq	s7, s2, process_args	# ' '
+	beq	s7, s3, process_args	# '\t'
 	j	bad_instr
 #=====================================================
 
@@ -138,92 +161,53 @@ whitespaceChar:
 interpret_instruction:
 	li	a6, 51		# for encoded instruction - initialized to bin(0110011) (opcode = OP)
 	mv	t5, zero	# for func3 code
-	
+	la	t0, inst_table
+	la	t3, tb_end
+
+	li	t1, 'i'
 	# check if last letter is 'i'
-	andi	t2, s0, 127 	# mask with bin(7x'1') - get last char in t2
-	bne	t2, s8, no_imm	
+	li	t4, 0xff	# mask bin(8x'1')
+	addi	s8, s8, -8
+	sll	t4, t4, s8	# move mask to last loaded byte
+
+	and	t2, s0, t4
+	srl	t2, t2,	s8
+	bne	t2, t1, no_imm	
 	
 	# otherwise - 'i' is present - remove 
 	addi	a6, a6, -32	# remove bin(100000) - change opcode to bin(0010011) (opcode = OP-IMM)
-	srli	s0, s0, 7 	# shift by 7 - get word without 'i'
+	not	t4, t4		# invert mask
+	and	s0, s0, t4	# remove 'i'
 	li	s1, 1	
 	
 no_imm:
-	# add
-	li	t3, 1602148
-	li	t5, 0
-	beq	s0, t3, no_imm_end
-	
-	# sll		
-	li	t5, 1
-	li	t3, 1898092
-	beq	s0, t3, no_imm_end
-	
-	# slt
-	li	t3, 1898100
-	li	t5, 2
-	beq	s0, t3, no_imm_end
-	
-	# sltu
-	li	t3, 242956917
-	li	t5, 3
-	beq	s0, t3, no_imm_end
-	
-	# xor
-	li	t3, 1980402
-	li	t5, 4
-	beq	s0, t3, no_imm_end
-	
-	# srl
-	li	t3, 1898860
-	li	t5, 5
-	beq	s0, t3, no_imm_end
-	
-	# or
-	li	t3, 14322
-	li	t5, 6
-	beq	s0, t3, no_imm_end
-	
-	# and
-	li	t3, 1603428
-	li	t5, 7
-	beq	s0, t3, no_imm_end
-	
-	# only left possibilities sub, sra/srai
-	# they all have 0100000 in funct7
-	li 	t4, 1073741824	# 1 followed by 30 zeros
-	add	a6, a6, t4
-	
-	# sra
-	li	t3, 1898849
-	li	t5, 5
-	beq	s0, t3, no_imm_end
-	
-	# sub
-	beq	t2, s8, bad_instr # additional check - no 'subi' instruction
-	li	t3, 1899234
-	mv	t5, zero
-	beq	s0, t3, no_imm_end
-	
-	j 	bad_instr
+	lw	t1, (t0)
+	beq	t1, s0, no_imm_end
 
+	addi	t0, t0, 8
+	bge	t0, t3, bad_instr
 
+	j	no_imm
+
+#todo: here also check for illegal subi instruction
 no_imm_end:
+	lw	t5, 4(t0)
+	andi	t0, t5, 7 # get lower 3 bits
+	sub	t5, t5, t0
+	sgtz	t5, t5
+	slli	t5, t5, 30
 	# add func3
-	slli	t5, t5, 12
+	slli	t0, t0, 12
+	add	a6, a6, t0
 	add	a6, a6, t5
 
-
+process_args:
 #======================= Processing the arguments =======================
 	li	s6,	7	# preset shift length to 7 - for the first argument
 #=============== 1st argument
 find_x_before_arg:
-	lb	s7, (a1)
-	bnez	s7, bufok_args
-	call	refill_buffer
-bufok_args:
-	addi	a1, a1, 1
-	# if space/tab - skip. if newline -  go to no_args. if anything else - syntax error
+	call	getch
+	bltz	s7, syntax_e
 	
 	beq	s7, s2, find_x_before_arg	# ' '
 	beq	s7, s3, find_x_before_arg	# '\t'
@@ -235,7 +219,6 @@ bufok_args:
 	bne	s7, t1, syntax_e	# not whitespace, can only be 'x' or syntax error
 		
 	call	rd_int12b
-#	ebreak
 	# check if returned value between 0 and 32
 	li	t1, 32
 	bgtu	a0, t1, syntax_e
@@ -250,14 +233,12 @@ bufok_args:
 	beq	s7, t1, arg1comma_found	# maybe char that ended the num was a comma - then ok
 
 f_comma_arg1:	
-	lb	s7, (a1)
-	bnez	s7, bufok_a1
 	
 	addi	a5, a5, -1
-	call	refill_buffer
+	call	getch
+	bltz	s7, syntax_e
 	li	t1, ','		# t1 may get invalidated by function call
-bufok_a1:
-	addi	a1, a1, 1
+
 	beq	s7, t1, arg1comma_found
 	
 	beq	s7, s2, f_comma_arg1	# ' '
@@ -280,8 +261,9 @@ arg3:
 	mv	s6, t1
 	bnez	s1, arg3_immediate
 
-#=============== 3rd arg is register:
-	j	find_x_before_arg	# same as for 1 and 2 with small adjustments
+# (1) 3rd arg is register:
+# same as for args 1 and 2 with shift 20
+	j	find_x_before_arg
 inst_end:
 	mv	a0, a6
 	li	a7, SYS_HEXPRT
@@ -294,22 +276,23 @@ inst_end:
 	call 	skip_to_nline
 	j	start_read_inst
 
-#=============== 3rd arg is immediate:
+# (2) 3rd arg is register:
 arg3_immediate:
-	#ebreak
-	lb	s7, (a1)
-	bnez	s7, bufok_a3i
-
-	call	refill_buffer
-bufok_a3i:
-	beq	s7, s2, cont_loop_a3i	#  ' '
-	beq	s7, s3, cont_loop_a3i	#  '\t'
-	beq	s7, s4, syntax_e	#  '\n'
-	
-	addi	a5, a5, -1
+	# here there is no preceeding x - 
 	call	rd_int12b
+	li	t1, -2048
+	bge	a0, t1, arg3_ok
+	
+	li	t1, -19999
+	bne	a0, t1, syntax_e
+	
+	beq	s7, s2, arg3_immediate
+	beq	s7, s3, arg3_immediate
+	j	syntax_e
+
+arg3_ok:
 	slli	a0, a0, 20
-	add	a6, a6, a0	# encode destination register
+	add	a6, a6, a0
 	
 	mv	a0, a6
 	li	a7, SYS_HEXPRT
@@ -322,14 +305,6 @@ bufok_a3i:
 	call 	skip_to_nline
 	j	start_read_inst
 
-cont_loop_a3i:
-	addi	a1, a1, 1
-	j	arg3_immediate
-	
-
-
-
-
 #===============================================================#
 # 			Utility functions:			#
 #===============================================================#
@@ -341,33 +316,23 @@ cont_loop_a3i:
 rd_int12b:
 	mv	a3, zero	# converted number
 	mv	a4, zero	# sign_info: 0 - undefined. 2048 - negative, 2047 - positive. At the same indicates largest possible number in terms of abosolute value
-	
-	li	t3, 10
-	li	t4, '-'
-	li	t5, '0'
-	li	t6, '9'
+
 	mv	s9, zero	# number of letters read
 loop_rdint:
-	lb	s7, (a1)
-	bnez	s7, bufok_rdint
-	
-
 	mv	s10, ra		# non-leaf procedure - save the return address
-	call	refill_buffer
+	call	getch
 	mv	ra, s10
+	bltz	s7, end_rdint
 
 	# fix constatnt temporary registers after call
 	li	t3, 10
 	li	t4, '-'
 	li	t5, '0'
 	li	t6, '9'
-	
-bufok_rdint:
-	addi	a1, a1, 1
-	beqz	a4, check_minus	# minus unset - allow to set it
+	beqz	a4, check_minus	# minus unset yet - allow to set it
 	
 	# check for minus in the middle of numer e.g. 102-23, --12, 1234-
-	beq	s7, t4, syntax_e
+	beq	s7, t4, err_rdint
 	
 convert_num:
 	bgt	s7, t6, end_rdint
@@ -379,7 +344,7 @@ convert_num:
 	
 	addi	s9, s9, 1
 	# range check:
-	bgtu	a3, a4, syntax_e
+	bgtu	a3, a4, err_rdint
 	
 	j	loop_rdint
 	
@@ -391,17 +356,29 @@ check_minus:
 	j 	loop_rdint	# skip minus - go to loop beginnig
 	
 end_rdint:
-	beqz	s9, syntax_e
+	beqz	s9, err_rdint_nochar	# no characters were read
 	mv	a0, a3
-	addi	a4, a4, -2047
 	
+	addi	a4, a4, -2047
 	beqz	a4, ret_rdint
+	
 	sub	a0, zero, a0
 ret_rdint:
 	ret
+err_rdint_nochar:
+	li	a0, -19999
+	ret
+err_rdint_eof:
+	li	a0, -15000
+	ret
+err_rdint:
+	li	a0, -9999
+	ret
+
 #==================================================================	
 
-
+inst_rd_eof:
+	bnez	s0, syntax_e
 # function: exit
 # Close file and return 0.
 # 	Assumption: s11 contains File Descriptor
@@ -418,6 +395,12 @@ exit:
 # function: refill_buffer
 # refill the buffer containing the file contents
 # assumption: s11 contains file descriptor
+getch:
+	lb	s7, (a1)
+	beqz	s7, refill_buffer	# if char is 0 - continue 
+	addi	a1, a1, 1	# advance buf address
+	ret
+
 refill_buffer:
         # read data syscall
         mv	a0, s11
@@ -429,12 +412,8 @@ refill_buffer:
 
         # if data was read - add \0 at ennd and reutrn
         bgtz    a0, refill_ok
-        
-        beqz	s0, exit	# jump to exit if s0 == 0 (instruction packing did not start yet)
-        bnez	a5, syntax_e	# if s0 != 0 AND a5 != 0 - final instruction is not full
-	# edge case - final instruction ok
-	li	s7, '\n'
-	ret
+        li	s7, -1
+        ret
         
 refill_ok:
         # Add '\0' after the last byte
@@ -451,20 +430,18 @@ skip_to_nline:
 	# reset the indicators of instruction and the instruction ending
 	mv	s0, zero
 	li	a5, 3
-#	ebreak
-	bnez	s7, bufok_nline
 	
+	# here branching is less efficient - but helps with situation when \n is encounered
+	# when function is called
+	beq	s7, s4, nline_found	# '\n'	
+	bltz	s7, exit
 	# refill buffer if empty
 	mv	s10, ra
-	call    refill_buffer
+	call    getch
 	mv	ra, s10
-bufok_nline:
-	beq	s7, s4, nlinefoun	# '\n'
-	addi	a1, a1, 1
-	lb	s7, (a1)
-	j	skip_to_nline
-nlinefoun:
-	lb	s7, (a1)
+	
+	j skip_to_nline	# '\n'
+nline_found:
 	ret
 #===========================================================
 # wrong instruciton - print info and go to newline or end
@@ -484,10 +461,10 @@ no_args:
 	j	start_read_inst
 
 syntax_e:
-#	ebreak
 	la 	a0, b_sntx
 	li	a7, SYS_PRT
 	ecall
+	bltz	s7, exit
 	call	skip_to_nline
 	j	start_read_inst	
 	
@@ -522,6 +499,5 @@ srai x10, x20,12
 ori x21, x3, 2047
 andi x0, x1, 124
 
-#slti x8, x1, x3
 
-#slti x9, x, 45
+# jesli EOF to zwrocic -1 i prezprocesowaćto w innych funkcjach
