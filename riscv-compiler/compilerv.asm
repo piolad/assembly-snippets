@@ -21,6 +21,8 @@
 .eqv	BUFLEN, 512	# at least 2 - to also accomodate for "\0"
 
 .eqv	min24bitnumer, 0x1000000	# 1 followed by 8*3=24 zeros
+.eqv	opcode_OP, 0x33
+.eqv	opcode_OP_IMM, 0x13
 
 .data
 inst_table:	# instruction and combined func3-func7 code
@@ -81,23 +83,20 @@ openfile:
 
 
 # ======================== pack instruction to s0 ========================
-# all instruction mnemonics (except 1 - sltiu) are 4 characters long
-# - so they can be packed onto a register.
-# ========================================================================
 start_read_inst:	# reset data before loop
-	mv	s0, zero	# instruction input data / 1st input data
-	mv	s1, zero	# for immeidate flag
-	
+	mv	s0, zero	# instruction 
+	mv	s1, zero	# immeidate flag
 	mv	s8, zero	# shift amount
 	
 read_inst:		# loop for packing the mnemonic
 	call	getch
 	bltz	s7, inst_rd_eof
-	# whitespace handling - skip if before mnemonic or interpret mnemonic
+	
+	# skip whitespace if before  mnemonic
 	beq	s7, s2, whitespaceChar	# ' '
 	beq	s7, s3, whitespaceChar	# '\t'
 	
-	# newline - skip if before mnemonic - otherwise no arguments - error
+	# skip newline if before mnemonic - otherwise error
 	beq	s7, s4, newlineChar
 	
 	# if instruction > bin(1 00000000 00000000 00000000), 4 instructions
@@ -105,7 +104,7 @@ read_inst:		# loop for packing the mnemonic
 	li	t0, min24bitnumer
 	bge	s0, t0, chk_sltiu
 	
-	# to lowercase conversion:
+	# to lowercase:
 	li	t0, 'A'
 	blt	s0, t0, skip_lowercase
 	li	t0, 'Z'
@@ -120,32 +119,11 @@ skip_lowercase:
 	
 	j	read_inst # continue with loop
 # ============================= end of loop
-chk_sltiu:
-	# edge case of instruction interpretation - only mnemonic with 5 letters
-	# check if s7 is equal to 'u' and the following character is a whitespace
-	# and if current content of s0 is stli
-	# otherwise - write error and go to next line
-	li	t1, 242956905
-	li	t2, 'u'
-		
-	bne	s7, t2, bad_instr
-	
-	call 	getch
-	bltz	s7, bad_instr
-	
-	li	a6, 19	# change opcode to bin(0010011) (opcode = OP-IMM)
-	li	t5, 3	# funct3 is bin(011)
-	slli	t5, t5, 12
-	add	a6, a6, t5
-	li	s1, 1	# immediate
-	beq	s7, s2, process_args	# ' '
-	beq	s7, s3, process_args	# '\t'
-	j	bad_instr
-#=====================================================
+
 
 
 newlineChar:
-	# if instruction is emty - skip char
+	# if instruction is empty - skip char
 	# otherwise error - instruction without arguments
 	bnez	s0, bad_instr
 
@@ -156,25 +134,24 @@ whitespaceChar:
 
 # ============= interpret packed mnemonic to binary ============== #
 #								   #
-# result: form without arguments - image reflects  x0, x0, x0 OR 0 #
+# result: form without arguments -  x0, x0, x0 OR 0	  	   #
 interpret_instruction:
-	li	a6, 51		# for encoded instruction - initialized to bin(0110011) (opcode = OP)
+	li	a6, opcode_OP
 	mv	t5, zero	# for func3 code
 	la	t0, inst_table
 	la	t3, tb_end
 
-	li	t1, 'i'
 	# check if last letter is 'i'
+	li	t1, 'i'
 	li	t4, 0xff	# mask bin(8x'1')
 	addi	s8, s8, -8
 	sll	t4, t4, s8	# move mask to last loaded byte
-
 	and	t2, s0, t4
 	srl	t2, t2,	s8
 	bne	t2, t1, no_imm	
 	
 	# otherwise - 'i' is present - remove 
-	addi	a6, a6, -32	# remove bin(100000) - change opcode to bin(0010011) (opcode = OP-IMM)
+	li	a6, opcode_OP_IMM	# change opcdoe (opcode = OP-IMM)
 	not	t4, t4		# invert mask
 	and	s0, s0, t4	# remove 'i'
 	li	s1, 1	
@@ -212,8 +189,8 @@ find_x_before_arg:
 	beq	s7, s3, find_x_before_arg	# '\t'
 	
 	# newline - end of instruction - wrong instruction
-	beq	s7, s4, no_args 	
-	
+	beq	s7, s4, ne_args 	
+
 	li	t1, 'x'
 	bne	s7, t1, syntax_e	# not whitespace, can only be 'x' or syntax error
 		
@@ -440,6 +417,28 @@ skip_to_nline:
 nline_found:
 	ret
 #===========================================================
+chk_sltiu:
+	# only mnemonic with 5 letters
+	# check if s7 is equal to 'u' and the following character is a whitespace
+	# and if current content of s0 is stli
+	# otherwise - bad_instr:
+	li	t1, 242956905
+	li	t2, 'u'
+		
+	bne	s7, t2, bad_instr
+	
+	call 	getch
+	bltz	s7, bad_instr
+	
+	li	a6, 19	# change opcode to bin(0010011) (opcode = OP-IMM)
+	li	t5, 3	# funct3 is bin(011)
+	slli	t5, t5, 12
+	add	a6, a6, t5
+	li	s1, 1	# immediate
+	beq	s7, s2, process_args	# ' '
+	beq	s7, s3, process_args	# '\t'
+#=====================================================
+
 # wrong instruciton - print info and go to newline or end
 bad_instr:
 	la 	a0, b_ins
@@ -449,7 +448,7 @@ bad_instr:
 	j	start_read_inst
 
 
-no_args:
+ne_args:
 	la 	a0, n_args
 	li	a7, SYS_PRT
 	ecall
@@ -493,4 +492,6 @@ srli x2, x4, 7
 
 srai x10, x20,12
 ori x21, x3, 2047
+
+
 
