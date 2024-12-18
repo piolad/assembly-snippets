@@ -81,13 +81,12 @@ openfile:
 
 
 # ======================== pack instruction to s0 ========================
-# all instruction mnemonics (except 1 - stliu) are 4 characters long
+# all instruction mnemonics (except 1 - sltiu) are 4 characters long
 # - so they can be packed onto a register.
 # ========================================================================
-start_read_inst:	# reset data - before loop
+start_read_inst:	# reset data before loop
 	mv	s0, zero	# instruction input data / 1st input data
 	mv	s1, zero	# for immeidate flag
-	li	a5, 3		# (3-a5) - number of arguments read
 	
 	mv	s8, zero	# shift amount
 	
@@ -230,23 +229,21 @@ find_x_before_arg:
 	beq	s6, t1, inst_end
 	
 	li	t1, ','
-	beq	s7, t1, arg1comma_found	# maybe char that ended the num was a comma - then ok
+	beq	s7, t1, comma_found	# maybe char that ended the num was a comma - then ok
 
-f_comma_arg1:	
-	
-	addi	a5, a5, -1
+find_comma_after_arg:
 	call	getch
 	bltz	s7, syntax_e
 	li	t1, ','		# t1 may get invalidated by function call
 
-	beq	s7, t1, arg1comma_found
+	beq	s7, t1, comma_found
 	
-	beq	s7, s2, f_comma_arg1	# ' '
-	beq	s7, s3, f_comma_arg1	# '\t'
+	beq	s7, s2, find_comma_after_arg	# ' '
+	beq	s7, s3, find_comma_after_arg	# '\t'
 
 	j	syntax_e
 
-arg1comma_found:
+comma_found:
 #================== 2nd argument ================== 
 # the same as for the first argument - with the shift of 15
 	li	t1, 15
@@ -429,7 +426,6 @@ refill_ok:
 skip_to_nline:
 	# reset the indicators of instruction and the instruction ending
 	mv	s0, zero
-	li	a5, 3
 	
 	# here branching is less efficient - but helps with situation when \n is encounered
 	# when function is called
@@ -497,7 +493,4 @@ srli x2, x4, 7
 
 srai x10, x20,12
 ori x21, x3, 2047
-andi x0, x1, 124
 
-
-# jesli EOF to zwrocic -1 i prezprocesowaćto w innych funkcjach
