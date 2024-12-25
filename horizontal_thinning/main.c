@@ -7,8 +7,8 @@ int main(int argc, char *argv[])
 {
     FILE *fptr;
     for(int i=0; i<argc; i++){
-        if(!(fptr = fopen("./newprogram.txt","rb"))){
-            printf("file \"%s\" could not be opened");
+        if(!(fptr = fopen(argv[i],"rb"))){
+            printf("file \"%s\" could not be opened", argv[i]);
             continue;
         }
 
