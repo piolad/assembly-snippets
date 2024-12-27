@@ -17,18 +17,21 @@ horthin:
         shr     edi, 5
         shl     edi, 2          ; image stride
         
+nextrow:
+        mov     esi, [ebp+16]
+        dec     esi
+        jz      fin
+        mov     [ebp+16], esi
 
         xor     ecx, ecx
-        mov     eax, dword [edx]
         mov     esi, 10000000000000000000000000000000b
-
-
-loop_:
         mov     edi, dword [edx]
         bswap   edi
+        mov     ebx, [ebp+12]   ; width of image
+loop_:
         mov     eax, edi
 
-        and     eax, esi  ; check this pixel vaue
+        and     eax, esi  ; check this pixel value
         jz      black
         ; white it is
         test    ecx, ecx
@@ -38,13 +41,12 @@ cont_loop:
         shr     esi, 1  ; move to next pixel within dword
         dec     ebx
         jnz     loop_
-        jmp     fin
-        
+        add     edx, 4
+        jmp     nextrow
 
 black:
         inc     ecx
         jmp     cont_loop
-
 
 end_blk_run:
         cmp     ecx, 3  ; only clean if more then 3 consecutive blacks found
@@ -59,10 +61,11 @@ end_blk_run:
 
         bswap   edi
         mov     [edx], edi
+        bswap   edi
 
 after_thin_cleanup:
         xor     ecx, ecx ; clear counter of black pixels
-        jmp cont_loop
+        jmp     cont_loop
 
 fin:
         pop     edi
