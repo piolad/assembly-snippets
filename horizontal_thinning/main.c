@@ -76,12 +76,12 @@ int main(int argc, char *argv[])
     uint32_t height = (uint32_t) infoHeader.biHeight;
 
     // 1 bpp, each row is padded to a multiple of 4 bytes
-    size_t rowSize  = ((width + 31u) / 32u) * 4u;
-    size_t dataSize = rowSize * height;
+    size_t stride  = ((width + 31u) / 32u) * 4u;
+    size_t dataSize = stride * height;
 
     printf("width: %d\n", width);
     printf("height: %d\n", height);
-    printf("rowSize: %d\n", rowSize);
+    printf("stride: %d\n", stride);
     printf("dataSize: %d\n", dataSize);
 
     uint8_t *imgData = (uint8_t *)malloc(dataSize);
@@ -99,7 +99,11 @@ int main(int argc, char *argv[])
     }
 
     displayBitmap1bpp(imgData, width, height);
+    printf("----- Raw binary data BEFORE horthin() -----\n");
+    print_binary_data(imgData, dataSize, stride);
     horthin(imgData, width, height);
+    printf("----- Raw binary data AFTER horthin() -----\n");
+    print_binary_data(imgData, dataSize, stride);
     // horthin_t(imgData, width, height);
     
     uint32_t headerSize = fileHeader.bfOffBits;
@@ -171,11 +175,11 @@ void print_debug_BMP_infoheader(BMPInfoHeader infoHeader)
 
 void displayBitmap1bpp(const uint8_t *imgData, uint32_t width, uint32_t height)
 {
-    size_t rowSize = ((width + 31u) / 32u) * 4u;
+    size_t stride = ((width + 31u) / 32u) * 4u;
 
     // display from bottom to top
     for (int row = (int)height - 1; row >= 0; row--) {
-        const uint8_t *rowPtr = imgData + row * rowSize;
+        const uint8_t *rowPtr = imgData + row * stride;
 
         // left to right
         for (uint32_t col = 0; col < width; col++) {
@@ -193,12 +197,33 @@ void displayBitmap1bpp(const uint8_t *imgData, uint32_t width, uint32_t height)
 
 void horthin_t(void *img, uint32_t width, uint32_t height){
     // invert colors to see if it works
-    size_t rowSize = ((width + 31u) / 32u) * 4u;
+    size_t stride = ((width + 31u) / 32u) * 4u;
     uint8_t *p = (uint8_t *)img;
     for (size_t row = 0; row < height; row++) {
-        for (size_t col = 0; col < rowSize; col++) {
+        for (size_t col = 0; col < stride; col++) {
             p[col] = ~p[col];
         }
-        p += rowSize;
+        p += stride;
     }
+}
+
+void print_binary_data(const uint8_t *data, size_t dataSize, size_t stride)
+{
+    for (size_t i = 0; i < dataSize; i++)
+    {
+        // print the 8 bits
+        for (int b = 7; b >= 0; b--)
+        {
+            printf("%d", (data[i] >> b) & 1);
+        }
+
+        printf(" ");
+
+        // newline every 'stride'
+        if ((i + 1) % stride == 0)
+        {
+            printf("\n");
+        }
+    }
+    printf("\n");
 }
