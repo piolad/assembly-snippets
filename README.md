@@ -1,5 +1,5 @@
 # assembly-snippets
-small assembly (x86 and RARS) and hybrid programs developed during my studies at Warsaw University of Technology
+small assembly (x86 and RARS) as well as hybrid programs developed during my studies at Warsaw University of Technology
 
 ## Snippets:
 - Get first num signed
