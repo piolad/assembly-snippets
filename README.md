@@ -1,5 +1,5 @@
 # assembly-snippets
-small x86 assembly/hybrid programs developed during my studies on Warsaw University of Technology
+small x86 assembly/hybrid programs developed during my studies at Warsaw University of Technology
 
 ## Snippets:
 - Get first num signed
