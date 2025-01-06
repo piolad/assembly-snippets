@@ -25,7 +25,7 @@ horthin:
 nextrow:
         mov     esi, [ebp+16]
         dec     esi
-        jz      fin
+        jl      fin
         mov     [ebp+16], esi
 
         mov     ebx, [ebp+12]   ; width of image
@@ -133,6 +133,9 @@ after_thin_cleanup:
 
 
 pr_nextrow:
+        test    ecx, ecx
+        shr     esi,1
+        jnz     end_blk_run
         add     edx, 4
         jmp     nextrow
 
