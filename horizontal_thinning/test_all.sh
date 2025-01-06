@@ -19,19 +19,19 @@ for TEST_FILE in "$TEST_DIR"/*; do
 
         # Check if the program crashed
         if [[ $EXIT_CODE -ne 0 ]]; then
-            echo "$TEST_FILE caused a crash"
+            echo "[ERR!] $TEST_FILE caused a crash"
         else
             # Compare the output file with the expected file
             EXPECTED_FILE="$EXPECTED_DIR/$(basename "$TEST_FILE" .bmp)_res.bmp"
 
             if [[ -f $EXPECTED_FILE ]]; then
                 if ! diff -q <(xxd "$BMP_OUTPUT") <(xxd "$EXPECTED_FILE") > /dev/null; then
-                    echo "$TEST_FILE produced incorrect output"
+                    echo "[ERR!] $TEST_FILE produced incorrect output"
                 else
                     echo "[ok] $TEST_FILE"
                 fi
             else
-                echo "[exp file not found] : $TEST_FILE  ($EXPECTED_FILE)"
+                echo "[no exp file] : $TEST_FILE  ($EXPECTED_FILE)"
             fi
         fi
     fi
