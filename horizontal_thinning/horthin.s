@@ -18,8 +18,9 @@ horthin:
         shr     edi, 5
         shl     edi, 2          ; image stride
         
-        sub     edi, ebx
-        mov     [ebp - 4], edi
+        shr     ebx, 2
+        sub     ebx, edi
+        mov     [ebp - 4], ebx
         
 nextrow:
         mov     esi, [ebp+16]
@@ -43,10 +44,10 @@ loop_:
 
 cont_loop:
         dec     ebx
-        jz      pr_nextrow
+        jng     pr_nextrow
         
         shr     esi, 1  ; move to next pixel within dword
-        jnz      loop_
+        jnz     loop_
         add     edx, 4
         jmp     nxword
 
@@ -62,13 +63,69 @@ end_blk_run:
         shl     esi, 1
         add     edi, esi
         dec     cl
-        shl     esi, cl ; -1?
+        
+        
+        bswap   edi
+        mov     [edx], edi
+        bswap   edi
+
+        mov     eax, [ebp+12]   ; width of the image
+        sub     eax, ebx        ; find current position
+        and     eax, 31         ; position within dword
+
+        cmp     ecx, eax
+        jl      th2ndpart       ; todo: maybe jle
+        ; othwerwise, the first black pixel happened in a one of prev dwords
+
+        mov     esi, eax        ; store eax for current esi recreation later
+
+        ; find pixel with that dword
+        neg     eax
+        add     eax, ecx        ; offset from start of current dword
+        mov     ecx, eax
+
+        
+        shr     eax, 5          ; divide by 32
+        inc     eax
+        shl     eax, 2
+        and     ecx, 31         ; mod for finding the offset from the bytes beginnign position
+
+        sub     edx, eax
+        mov     edi, [edx]
+        bswap   edi
+
+        xchg    eax, esi
+        mov     ch, al
+        xchg    eax, esi
+
+        mov     esi, 1
+        shl     esi, cl
         add     edi, esi
-        shr     esi, cl ; -1?
+        
+
+        bswap   edi
+        mov     [edx], edi
+        
+        add     edx, eax
+        mov     edi, [edx]
+        bswap   edi
+        mov     cl, ch
+        xor     ch, ch
+        mov     esi, 10000000000000000000000000000000b
+        shr     esi, cl
+        jmp     after_thin_cleanup
+        
+th2ndpart:
+        
+        shl     esi, cl 
+        add     edi, esi
+        shr     esi, cl 
 
         bswap   edi
         mov     [edx], edi
         bswap   edi
+        shr     esi, 1
+
 
 after_thin_cleanup:
         xor     ecx, ecx ; clear counter of black pixels
@@ -76,8 +133,7 @@ after_thin_cleanup:
 
 
 pr_nextrow:
-        mov     eax, [ebp - 4]
-        add     edx, eax
+        add     edx, 4
         jmp     nextrow
 
 fin:
