@@ -1,69 +1,61 @@
         section .text
         global  horthin
+
+; wszystkie skoki warunkowe
+; brak liczbze znakiem - nie uzywac jng etc
+
+; sprawdzic xor ecx ecx czy jest powtorzenie
+; za duzo skoków bezwarunkowych
 horthin:
         push    ebp
         mov     ebp, esp
-        ; sub esp, (LOCAL_DATA_SIZE + 3) & ~3 ; allocate locals if needed
-        sub     esp, 4
+        
         push    ebx
         push    esi
         push    edi
 
-        mov     edx, [ebp+8]
-        mov     ebx, [ebp+12]   ; width of image
-        mov     ecx, [ebp+16]   ; height of image
-        ; stride:
-        mov     edi, ebx
-        add     edi, 31
-        shr     edi, 5
-        shl     edi, 2          ; image stride
+        mov     edx, [ebp+8]    ; bitmap data
         
-        shr     ebx, 2
-        sub     ebx, edi
-        mov     [ebp - 4], ebx
-        
-nextrow:
-        mov     esi, [ebp+16]
-        dec     esi
-        jl      fin
-        mov     [ebp+16], esi
 
+
+
+nextrow:
         mov     ebx, [ebp+12]   ; width of image
         xor     ecx, ecx
-nxword:
+next_dword:
         mov     esi, 10000000000000000000000000000000b
         mov     edi, dword [edx]
         bswap   edi
 
-loop_:
-        test    edi, esi  ; check this pixel value by and'ing
+next_pixel:
+        test    edi, esi        ; check this pixel's value by and-ing dword with mask
         jz      black
+
         ; white it is
         test    ecx, ecx
         jnz     end_blk_run
 
 cont_loop:
         dec     ebx
-        jng     pr_nextrow
+        jle     pr_nextrow      ; nie not grater 
         
-        shr     esi, 1  ; move to next pixel within dword
-        jnz     loop_
+        shr     esi, 1          ; move mask to next pixel
+        jnz     next_pixel
         add     edx, 4
-        jmp     nxword
+        jmp     next_dword
 
 black:
         inc     ecx
         jmp     cont_loop
 
 end_blk_run:
-        cmp     ecx, 3  ; only clean if more then 3 consecutive blacks found
+        cmp     ecx, 3          ; only clean if more then 3 consecutive blacks found
         jl      after_thin_cleanup
         
-        
+        ; this pixel is white - move to previous
         shl     esi, 1
-        add     edi, esi
+        or     edi, esi        ; make it white
         dec     cl
-        
         
         bswap   edi
         mov     [edx], edi
@@ -128,21 +120,25 @@ th2ndpart:
 
 
 after_thin_cleanup:
-        xor     ecx, ecx ; clear counter of black pixels
+        xor     ecx, ecx        ; clear counter of black pixels
         jmp     cont_loop
 
 
 pr_nextrow:
+        shr     esi, 1
         test    ecx, ecx
-        shr     esi,1
         jnz     end_blk_run
         add     edx, 4
-        jmp     nextrow
+
+        mov     esi, [ebp+16]
+        dec     esi
+        mov     [ebp+16], esi
+        ja      nextrow
 
 fin:
         pop     edi
         pop     esi
         pop     ebx
-        mov     esp, ebp ; deallocate local vars 
+        ; mov     esp, ebp        ; deallocate local vars 
         pop     ebp
         ret
