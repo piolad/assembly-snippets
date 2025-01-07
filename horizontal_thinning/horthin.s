@@ -6,6 +6,7 @@
 
 ; sprawdzic xor ecx ecx czy jest powtorzenie
 ; za duzo skoków bezwarunkowych
+; sprawdizć czy dałoby się ogarnmąć th2ndpart
 horthin:
         push    ebp
         mov     ebp, esp
@@ -29,32 +30,28 @@ next_dword:
 
 next_pixel:
         test    edi, esi        ; check this pixel's value by and-ing dword with mask
-        jz      black
+        jnz     end_blk_run     ; white pixel
 
-        ; white it is
-        test    ecx, ecx
-        jnz     end_blk_run
+        ; otherwise black pixel - inc counter and continue loop
+        inc     ecx
 
 cont_loop:
         dec     ebx
-        jle     pr_nextrow      ; nie not grater 
+        jle     pr_nextrow
         
         shr     esi, 1          ; move mask to next pixel
         jnz     next_pixel
         add     edx, 4
         jmp     next_dword
 
-black:
-        inc     ecx
-        jmp     cont_loop
 
 end_blk_run:
-        cmp     ecx, 3          ; only clean if more then 3 consecutive blacks found
+        cmp     ecx, 3          ; only thin if more then 3 consecutive blacks found
         jl      after_thin_cleanup
         
-        ; this pixel is white - move to previous
+        ; current pixel is white - move to previous
         shl     esi, 1
-        or     edi, esi        ; make it white
+        or      edi, esi        ; make it white
         dec     cl
         
         bswap   edi
@@ -66,41 +63,47 @@ end_blk_run:
         and     eax, 31         ; position within dword
 
         cmp     ecx, eax
-        jl      th2ndpart       ; todo: maybe jle
-        ; othwerwise, the first black pixel happened in a one of prev dwords
+        jl      th2ndpart       ; check if the black run is contained within dword
 
-        mov     esi, eax        ; store eax for current esi recreation later
+        ; othwerwise, change the other dword
+        mov     esi, eax        ; save mask's shamt
 
-        ; find pixel with that dword
         neg     eax
         add     eax, ecx        ; offset from start of current dword
         mov     ecx, eax
 
         
-        shr     eax, 5          ; divide by 32
-        inc     eax
-        shl     eax, 2
-        and     ecx, 31         ; mod for finding the offset from the bytes beginnign position
+        shr     eax, 5          ; divide by 32 to get dword difference
+        inc     eax             ; +1 as offset comes from beginning of curr dword
+        shl     eax, 2          ; *4 for dword address
 
+        and     ecx, 31         ; mod 32 - offset from the found dword's beginning position
+
+        ; load the dword
         sub     edx, eax
         mov     edi, [edx]
         bswap   edi
 
+        ; save the prev mask's shamt to ch
         xchg    eax, esi
         mov     ch, al
         xchg    eax, esi
 
+        ; prep mask for dword with run's first black pixel
         mov     esi, 1
         shl     esi, cl
-        add     edi, esi
-        
+        or      edi, esi
 
         bswap   edi
         mov     [edx], edi
         
+
+        ; load previous byte
         add     edx, eax
         mov     edi, [edx]
         bswap   edi
+
+        ; restore the shamt
         mov     cl, ch
         xor     ch, ch
         mov     esi, 10000000000000000000000000000000b
@@ -110,7 +113,7 @@ end_blk_run:
 th2ndpart:
         
         shl     esi, cl 
-        add     edi, esi
+        or      edi, esi
         shr     esi, cl 
 
         bswap   edi
