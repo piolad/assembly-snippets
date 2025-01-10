@@ -23,7 +23,7 @@ nextrow:
         
 next_dword:
         mov     esi, 10000000000000000000000000000000b
-        mov     edi, dword [edx]
+        mov     edi, [edx]
         bswap   edi
 
 next_pixel:
@@ -60,9 +60,20 @@ black_run_ended:
         and     eax, 31         ; position within dword
 
         cmp     ecx, eax
-        jl      one_dword_thin  ;  check if the black run is contained within dword
+        jge     multi_dword_thin  ;  check if the black run is contained within dword
 
-        ; othwerwise, change the other dword
+        ; single-dword        
+        shl     esi, cl 
+        or      edi, esi
+        shr     esi, cl 
+
+        bswap   edi
+        mov     [edx], edi
+        bswap   edi
+        shr     esi, 1
+        jmp     finish_thin
+
+multi_dword_thin:
         mov     esi, eax        ; save mask's shamt
 
         neg     eax
@@ -103,19 +114,7 @@ black_run_ended:
         mov     cl, ch
         xor     ch, ch
         mov     esi, 10000000000000000000000000000000b
-        shr     esi, cl
-        jmp     finish_thin
-        
-one_dword_thin:
-        
-        shl     esi, cl 
-        or      edi, esi
-        shr     esi, cl 
-
-        bswap   edi
-        mov     [edx], edi
-        bswap   edi
-        shr     esi, 1
+        shr     esi, cl      
 
 finish_thin:
         xor     ecx, ecx        ; clear counter of black pixels
