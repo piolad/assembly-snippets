@@ -15,8 +15,8 @@ horthin:
         push    esi
         push    edi
 
-        mov     edx, [ebp+8]    ; bitmap data
         xor     ecx, ecx
+        mov     edx, [ebp+8]    ; bitmap data
 
 nextrow:
         mov     ebx, [ebp+12]   ; width of image
@@ -28,23 +28,23 @@ next_dword:
 
 next_pixel:
         test    edi, esi        ; check this pixel's value by and-ing dword with mask
-        jnz     end_blk_run     ; white pixel
+        jnz     black_run_ended     ; white pixel
 
         ; otherwise black pixel - inc counter and continue loop
         inc     ecx
 
 cont_loop:
         dec     ebx
-        jle     pr_nextrow
+        jle     prep_nextrow
         
         shr     esi, 1          ; move mask to next pixel
         jnz     next_pixel
         add     edx, 4
         jmp     next_dword
 
-end_blk_run:
+black_run_ended:
         cmp     ecx, 3          ; only thin if more then 3 consecutive blacks found
-        jl      after_thin_cleanup
+        jl      finish_thin
         
         ; current pixel is white - move to previous
         shl     esi, 1
@@ -60,7 +60,7 @@ end_blk_run:
         and     eax, 31         ; position within dword
 
         cmp     ecx, eax
-        jl      th2ndpart       ; check if the black run is contained within dword
+        jl      one_dword_thin  ;  check if the black run is contained within dword
 
         ; othwerwise, change the other dword
         mov     esi, eax        ; save mask's shamt
@@ -93,7 +93,6 @@ end_blk_run:
 
         bswap   edi
         mov     [edx], edi
-        
 
         ; load previous byte
         add     edx, eax
@@ -105,9 +104,9 @@ end_blk_run:
         xor     ch, ch
         mov     esi, 10000000000000000000000000000000b
         shr     esi, cl
-        jmp     after_thin_cleanup
+        jmp     finish_thin
         
-th2ndpart:
+one_dword_thin:
         
         shl     esi, cl 
         or      edi, esi
@@ -118,16 +117,15 @@ th2ndpart:
         bswap   edi
         shr     esi, 1
 
-
-after_thin_cleanup:
+finish_thin:
         xor     ecx, ecx        ; clear counter of black pixels
         jmp     cont_loop
 
 
-pr_nextrow:
+prep_nextrow:
         shr     esi, 1
         test    ecx, ecx
-        jnz     end_blk_run
+        jnz     black_run_ended
         add     edx, 4
 
         mov     esi, [ebp+16]
