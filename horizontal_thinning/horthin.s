@@ -4,9 +4,8 @@
 ; wszystkie skoki warunkowe
 ; brak liczbze znakiem - nie uzywac jng etc
 
-; sprawdzic xor ecx ecx czy jest powtorzenie
 ; za duzo skoków bezwarunkowych
-; sprawdizć czy dałoby się ogarnmąć th2ndpart
+
 horthin:
         push    ebp
         mov     ebp, esp
