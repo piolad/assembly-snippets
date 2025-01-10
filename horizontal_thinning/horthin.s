@@ -16,13 +16,11 @@ horthin:
         push    edi
 
         mov     edx, [ebp+8]    ; bitmap data
-        
-
-
+        xor     ecx, ecx
 
 nextrow:
         mov     ebx, [ebp+12]   ; width of image
-        xor     ecx, ecx
+        
 next_dword:
         mov     esi, 10000000000000000000000000000000b
         mov     edi, dword [edx]
@@ -43,7 +41,6 @@ cont_loop:
         jnz     next_pixel
         add     edx, 4
         jmp     next_dword
-
 
 end_blk_run:
         cmp     ecx, 3          ; only thin if more then 3 consecutive blacks found
