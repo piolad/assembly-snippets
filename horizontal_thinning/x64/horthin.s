@@ -14,122 +14,119 @@ horthin:
         push    rsi
         push    rdi
         ; r12-r15 ?
+        ; RDI, RSI, RDX
 
-        xor     ecx, ecx
-        mov     edx, [ebp+8]    ; bitmap data
-
+        xor     rcx, rcx
 nextrow:
-        mov     ebx, [ebp+12]   ; width of image
+        mov     rbx, rsi   ; width of image
         
 next_dword:
-        mov     esi, 10000000000000000000000000000000b
-        mov     edi, [edx]
-        bswap   edi
+        mov     r8, 1000000000000000000000000000000000000000000000000000000000000000b
+        mov     r9, [rdi]
+        bswap   r9
 
 next_pixel:
-        test    edi, esi        ; check this pixel's value by and-ing dword with mask
+        test    r9, r8        ; check this pixel's value by and-ing dword with mask
         jnz     black_run_ended     ; white pixel
 
         ; otherwise black pixel - inc counter and continue loop
-        inc     ecx
+        inc     rcx
 
 cont_loop:
-        dec     ebx
+        dec     rbx
         jle     prep_nextrow
         
-        shr     esi, 1          ; move mask to next pixel
+        shr     r8, 1          ; move mask to next pixel
         jnz     next_pixel
-        add     edx, 4
+        add     rdi, 8
         jmp     next_dword
 
 black_run_ended:
-        cmp     ecx, 3          ; only thin if more then 3 consecutive blacks found
+        cmp     rcx, 3          ; only thin if more then 3 consecutive blacks found
         jl      finish_thin
         
         ; current pixel is white - move to previous
-        shl     esi, 1
-        or      edi, esi        ; make it white
+        shl     r8, 1
+        or      r9, r8        ; make it white
         dec     cl
         
-        bswap   edi
-        mov     [edx], edi
-        bswap   edi
+        bswap   r9
+        mov     [rdi], r9
+        bswap   r9
 
-        mov     eax, [ebp+12]   ; width of the image
-        sub     eax, ebx        ; find current position
-        and     eax, 31         ; position within dword
+        mov     rax, rsi   ; width of the image
+        sub     rax, rbx        ; find current position
+        and     rax, 31         ; position within dword
 
-        cmp     ecx, eax
+        cmp     rcx, rax
         jge     multi_dword_thin  ;  check if the black run is contained within dword
 
         ; single-dword        
-        shl     esi, cl 
-        or      edi, esi
-        shr     esi, cl 
+        shl     r8, cl 
+        or      r9, r8
+        shr     r8, cl 
 
-        bswap   edi
-        mov     [edx], edi
-        bswap   edi
-        shr     esi, 1
+        bswap   r9
+        mov     [rdi], r9
+        bswap   r9
+        shr     r8, 1
         jmp     finish_thin
 
 multi_dword_thin:
-        mov     esi, eax        ; save mask's shamt
+        mov     r8, rax        ; save mask's shamt
 
-        neg     eax
-        add     eax, ecx        ; offset from start of current dword
-        mov     ecx, eax
+        neg     rax
+        add     rax, rcx        ; offset from start of current dword
+        mov     rcx, rax
 
         
-        shr     eax, 5          ; divide by 32 to get dword difference
-        inc     eax             ; +1 as offset comes from beginning of curr dword
-        shl     eax, 2          ; *4 for dword address
+        shr     rax, 5          ; divide by 32 to get dword difference
+        inc     rax             ; +1 as offset comes from beginning of curr dword
+        shl     rax, 2          ; *4 for dword address
 
-        and     ecx, 31         ; mod 32 - offset from the found dword's beginning position
+        and     rcx, 31         ; mod 32 - offset from the found dword's beginning position
 
         ; load the dword
-        sub     edx, eax
-        mov     edi, [edx]
-        bswap   edi
+        sub     rdi, rax
+        mov     r9, [rdi]
+        bswap   r9
 
         ; save the prev mask's shamt to ch
-        xchg    eax, esi
+        xchg    rax, r8
         mov     ch, al
-        xchg    eax, esi
+        xchg    rax, r8
 
         ; prep mask for dword with run's first black pixel
-        mov     esi, 1
-        shl     esi, cl
-        or      edi, esi
+        mov     r8, 1
+        shl     r8, cl
+        or      r9, r8
 
-        bswap   edi
-        mov     [edx], edi
+        bswap   r9
+        mov     [rdi], r9
 
         ; load previous byte
-        add     edx, eax
-        mov     edi, [edx]
-        bswap   edi
+        add     rdi, rax
+        mov     r9, [rdi]
+        bswap   r9
 
         ; restore the shamt
         mov     cl, ch
         xor     ch, ch
-        mov     esi, 10000000000000000000000000000000b
-        shr     esi, cl      
+        mov     r8, 10000000000000000000000000000000b
+        shr     r8, cl      
 
 finish_thin:
-        xor     ecx, ecx        ; clear counter of black pixels
+        xor     rcx, rcx        ; clear counter of black pixels
         jmp     cont_loop
 
 
 prep_nextrow:
-        shr     esi, 1
-        test    ecx, ecx
+        shr     r8, 1
+        test    rcx, rcx
         jnz     black_run_ended
-        add     edx, 4
+        add     rdi, 4
 
-        mov     esi, [ebp+16]
-        dec     esi
-        mov     [ebp+16], esi
+        dec     rdx
         ja      nextrow
 
 fin:
