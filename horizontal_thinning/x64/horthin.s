@@ -56,12 +56,12 @@ black_run_ended:
 
         mov     rax, rsi   ; width of the image
         sub     rax, rbx        ; find current position
-        and     rax, 31         ; position within dword
+        and     rax, 63         ; position within qword
 
         cmp     rcx, rax
-        jge     multi_dword_thin  ;  check if the black run is contained within dword
+        jge     multi_dword_thin  ;  check if the black run is contained within qword
 
-        ; single-dword        
+        ; single-qword
         shl     r8, cl 
         or      r9, r8
         shr     r8, cl 
@@ -80,11 +80,11 @@ multi_dword_thin:
         mov     rcx, rax
 
         
-        shr     rax, 5          ; divide by 32 to get dword difference
-        inc     rax             ; +1 as offset comes from beginning of curr dword
-        shl     rax, 2          ; *4 for dword address
+        shr     rax, 6          ; divide by 64 to get qword difference
+        inc     rax             ; +1 as offset comes from beginning of curr qword
+        shl     rax, 3          ; *8 for qword address
 
-        and     rcx, 31         ; mod 32 - offset from the found dword's beginning position
+        and     rcx, 63         ; mod 64 - offset from the found qword's beginning position
 
         ; load the dword
         sub     rdi, rax
@@ -112,7 +112,7 @@ multi_dword_thin:
         ; restore the shamt
         mov     cl, ch
         xor     ch, ch
-        mov     r8, 10000000000000000000000000000000b
+        mov     r8, 1000000000000000000000000000000000000000000000000000000000000000b
         shr     r8, cl      
 
 finish_thin:
@@ -126,6 +126,13 @@ prep_nextrow:
         jnz     black_run_ended
         add     rdi, 4
 
+        ; here maybe add another 4 if we are still in top half
+        mov     r10, r8
+        and     r10, 1111111111111111111111111111111b
+        jz      dec_rdx
+        add     rdi, 4
+        
+dec_rdx:
         dec     rdx
         ja      nextrow
 
