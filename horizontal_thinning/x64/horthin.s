@@ -16,13 +16,13 @@ horthin:
 nextrow:
         mov     rbx, rsi   ; width of image
         
-next_dword:
+next_qword:
         mov     r8, 1000000000000000000000000000000000000000000000000000000000000000b
         mov     r9, [rdi]
         bswap   r9
 
 next_pixel:
-        test    r9, r8        ; check this pixel's value by and-ing dword with mask
+        test    r9, r8        ; check this pixel's value by and-ing qword with mask
         jnz     black_run_ended     ; white pixel
 
         ; otherwise black pixel - inc counter and continue loop
@@ -35,7 +35,7 @@ cont_loop:
         shr     r8, 1           ; move mask to next pixel
         jnz     next_pixel
         add     rdi, 8
-        jmp     next_dword
+        jmp     next_qword
 
 black_run_ended:
         cmp     rcx, 3          ; only thin if more then 3 consecutive blacks found
@@ -55,7 +55,7 @@ black_run_ended:
         and     rax, 63         ; position within qword
 
         cmp     rcx, rax
-        jge     multi_dword_thin  ;  check if the black run is contained within qword
+        jge     multi_qword_thin  ;  check if the black run is contained within qword
 
         ; single-qword
         shl     r8, cl 
@@ -68,9 +68,9 @@ black_run_ended:
         shr     r8, 1
         jmp     finish_thin
 
-multi_dword_thin:
+multi_qword_thin:
         neg     rax
-        add     rax, rcx        ; offset from start of current dword
+        add     rax, rcx        ; offset from start of current qword
         mov     rcx, rax
       
         shr     rax, 6          ; divide by 64 to get qword difference
@@ -79,12 +79,12 @@ multi_dword_thin:
 
         and     rcx, 63         ; mod 64 - offset from the found qword's beginning position
 
-        ; load the dword
+        ; load the qword
         sub     rdi, rax
         mov     r9, [rdi]
         bswap   r9
 
-        ; prep mask for dword with run's first black pixel
+        ; prep mask for qword with run's first black pixel
         mov     r11, 1
         shl     r11, cl
         or      r9, r11
