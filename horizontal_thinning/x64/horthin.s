@@ -36,7 +36,7 @@ cont_loop:
         dec     rbx
         jle     prep_nextrow
         
-        shr     r8, 1          ; move mask to next pixel
+        shr     r8, 1           ; move mask to next pixel
         jnz     next_pixel
         add     rdi, 8
         jmp     next_dword
@@ -47,14 +47,14 @@ black_run_ended:
         
         ; current pixel is white - move to previous
         shl     r8, 1
-        or      r9, r8        ; make it white
+        or      r9, r8          ; make it white
         dec     cl
         
         bswap   r9
         mov     [rdi], r9
         bswap   r9
 
-        mov     rax, rsi   ; width of the image
+        mov     rax, rsi        ; width of the image
         sub     rax, rbx        ; find current position
         and     rax, 63         ; position within qword
 
@@ -73,13 +73,10 @@ black_run_ended:
         jmp     finish_thin
 
 multi_dword_thin:
-        mov     r8, rax        ; save mask's shamt
-
         neg     rax
         add     rax, rcx        ; offset from start of current dword
         mov     rcx, rax
-
-        
+      
         shr     rax, 6          ; divide by 64 to get qword difference
         inc     rax             ; +1 as offset comes from beginning of curr qword
         shl     rax, 3          ; *8 for qword address
@@ -91,15 +88,10 @@ multi_dword_thin:
         mov     r9, [rdi]
         bswap   r9
 
-        ; save the prev mask's shamt to ch
-        xchg    rax, r8
-        mov     ch, al
-        xchg    rax, r8
-
         ; prep mask for dword with run's first black pixel
-        mov     r8, 1
-        shl     r8, cl
-        or      r9, r8
+        mov     r11, 1
+        shl     r11, cl
+        or      r9, r11
 
         bswap   r9
         mov     [rdi], r9
@@ -109,11 +101,7 @@ multi_dword_thin:
         mov     r9, [rdi]
         bswap   r9
 
-        ; restore the shamt
-        mov     cl, ch
-        xor     ch, ch
-        mov     r8, 1000000000000000000000000000000000000000000000000000000000000000b
-        shr     r8, cl      
+        shr     r8, 1      
 
 finish_thin:
         xor     rcx, rcx        ; clear counter of black pixels
