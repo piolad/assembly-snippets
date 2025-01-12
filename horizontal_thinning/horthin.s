@@ -1,11 +1,6 @@
         section .text
         global  horthin
 
-; wszystkie skoki warunkowe
-; brak liczbze znakiem - nie uzywac jng etc
-
-; za duzo skoków bezwarunkowych
-
 horthin:
         push    ebp
         mov     ebp, esp
