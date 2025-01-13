@@ -41,7 +41,10 @@ black_run_ended:
         jl      finish_thin
         
         ; current pixel is white - move to previous
+        mov     eax, 1
         shl     esi, 1
+        cmovz   esi, eax
+        
         or      edi, esi        ; make it white
         dec     cl
         
@@ -51,11 +54,13 @@ black_run_ended:
 
         mov     eax, [ebp+12]   ; width of the image
         sub     eax, ebx        ; find current position
+        cmp     eax, 32
+        je      single
         and     eax, 31         ; position within dword
 
         cmp     ecx, eax
         jge     multi_dword_thin  ;  check if the black run is contained within dword
-
+single:
         ; single-dword        
         shl     esi, cl 
         or      edi, esi
@@ -69,7 +74,11 @@ black_run_ended:
 
 multi_dword_thin:
         mov     esi, eax        ; save mask's shamt
-
+        ; workaround for last pixel in 32bit wide images
+        test    eax, eax
+        jnz     eax_not_z
+        mov     eax, 32
+eax_not_z:
         neg     eax
         add     eax, ecx        ; offset from start of current dword
         mov     ecx, eax

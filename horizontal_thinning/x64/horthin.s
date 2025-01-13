@@ -7,10 +7,21 @@ horthin:
         mov     rbp, rsp
         
         push    rbx
-        push    rsi
-        push    rdi
+        ; push    rsi
+        ; push    rdi
         ; r12-r15 ?
         ; RDI, RSI, RDX
+
+        mov     r11, rsi
+        add     r11, 7
+        shr     r11, 3
+
+        mov     r10, rsi
+        add     r10, 31
+        shr     r10, 5
+        shl     r10, 2
+        sub     r10, r11
+        shl     r10, 2
 
         xor     rcx, rcx
 nextrow:
@@ -42,7 +53,10 @@ black_run_ended:
         jl      finish_thin
         
         ; current pixel is white - move to previous
+        mov     rax, 1
         shl     r8, 1
+        cmovz   r8, rax
+
         or      r9, r8          ; make it white
         dec     cl
         
@@ -52,11 +66,15 @@ black_run_ended:
 
         mov     rax, rsi        ; width of the image
         sub     rax, rbx        ; find current position
+        ; dec     rax
+        cmp     rax, 64
+        je      single
         and     rax, 63         ; position within qword
 
         cmp     rcx, rax
         jge     multi_qword_thin  ;  check if the black run is contained within qword
 
+single:
         ; single-qword
         shl     r8, cl 
         or      r9, r8
@@ -69,6 +87,12 @@ black_run_ended:
         jmp     finish_thin
 
 multi_qword_thin:
+        ; mov     r, rax
+        test    rax, rax
+        jnz     rax_not_z
+        mov     rax, 64
+
+rax_not_z:
         neg     rax
         add     rax, rcx        ; offset from start of current qword
         mov     rcx, rax
@@ -105,15 +129,28 @@ finish_thin:
 
 
 prep_nextrow:
+        
         shr     r8, 1
         test    rcx, rcx
         jnz     black_run_ended
-        add     rdi, 4
 
-        ; here maybe add another 4 if we are still in top half
-        mov     r10, r8
-        and     r10, 1111111111111111111111111111111b
+
+        ; mov     rax, rbx
+        ; xchg    cl, al
+        mov     rcx, rbx
+        neg     cl
+        shl     r8, cl
+        ; xchg    cl, al
+        xor     ecx, ecx
+        add     rdi, 4
+        test    r8, r8
+        jz      add4_to_rdi
+        test    r8, 1111111111111111111111111111111b
         jz      dec_rdx
+        ; test    r8, 32
+
+add4_to_rdi:
+        ; jz      dec_rdx
         add     rdi, 4
         
 dec_rdx:
@@ -121,8 +158,8 @@ dec_rdx:
         ja      nextrow
 
 fin:
-        pop    rdi
-        pop    rsi
+        ; pop    rdi
+        ; pop    rsi
         pop    rbx
 
         leave
