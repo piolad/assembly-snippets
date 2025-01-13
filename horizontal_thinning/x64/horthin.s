@@ -6,26 +6,9 @@ horthin:
         push    rbp
         mov     rbp, rsp
         
-        push    rbx
-        ; push    rsi
-        ; push    rdi
-        ; r12-r15 ?
-        ; RDI, RSI, RDX
-
-        mov     r11, rsi
-        add     r11, 7
-        shr     r11, 3
-
-        mov     r10, rsi
-        add     r10, 31
-        shr     r10, 5
-        shl     r10, 2
-        sub     r10, r11
-        shl     r10, 2
-
         xor     rcx, rcx
 nextrow:
-        mov     rbx, rsi   ; width of image
+        mov     r10, rsi   ; width of image
         
 next_qword:
         mov     r8, 1000000000000000000000000000000000000000000000000000000000000000b
@@ -40,7 +23,7 @@ next_pixel:
         inc     rcx
 
 cont_loop:
-        dec     rbx
+        dec     r10
         jle     prep_nextrow
         
         shr     r8, 1           ; move mask to next pixel
@@ -65,7 +48,7 @@ black_run_ended:
         bswap   r9
 
         mov     rax, rsi        ; width of the image
-        sub     rax, rbx        ; find current position
+        sub     rax, r10        ; find current position
         ; dec     rax
         cmp     rax, 64
         je      single
@@ -129,38 +112,27 @@ finish_thin:
 
 
 prep_nextrow:
-        
         shr     r8, 1
         test    rcx, rcx
         jnz     black_run_ended
 
-
-        ; mov     rax, rbx
-        ; xchg    cl, al
-        mov     rcx, rbx
+        mov     rcx, r10
         neg     cl
         shl     r8, cl
-        ; xchg    cl, al
+
         xor     ecx, ecx
         add     rdi, 4
         test    r8, r8
         jz      add4_to_rdi
         test    r8, 1111111111111111111111111111111b
         jz      dec_rdx
-        ; test    r8, 32
 
 add4_to_rdi:
-        ; jz      dec_rdx
         add     rdi, 4
-        
+
 dec_rdx:
         dec     rdx
         ja      nextrow
-
 fin:
-        ; pop    rdi
-        ; pop    rsi
-        pop    rbx
-
         leave
         ret
