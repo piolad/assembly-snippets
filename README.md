@@ -2,11 +2,12 @@
 Assembly (x86 and RARS) programs I developed  at [Warsaw University of Technology](https://eng.pw.edu.pl/)
 
 ## Snippets:
-- [horizontal thinning (x86)](./horizontal_thinning)
+- [horizontal thinning (x86)](./horizontal_thinning) -
+thin the black lines by 1 pixel on each side
     
-    **input:** string [input BMP path], string [output BMP path]
+    **input:** string \[input BMP path (1 bit per pixel)], string \[output BMP path]
 
-    **output:** the BMP is modified
+    **output:** the BMP is modified with horizontal black lines thinned
 
 - [Get first num signed (x86)](./get_first_num_signed)
     
@@ -22,7 +23,7 @@ Assembly (x86 and RARS) programs I developed  at [Warsaw University of Technolog
 
 
 
-# Docs
+## Docs
 
 Here are some good resources to learn and develop the code
 
