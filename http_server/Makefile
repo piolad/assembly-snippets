@@ -1,5 +1,5 @@
-EXEFILE = hth
-OBJECTS = horthin.o main.o
+EXEFILE = http
+OBJECTS = http.o
 CCFMT = -m32
 NASMFMT = -f elf32
 CCOPT = -g -O0
