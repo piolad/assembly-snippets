@@ -31,3 +31,6 @@ Here are some good resources to learn and develop the code
 
     A quick to use listing of x86 instructions
 
+- [Pinguinux](https://kernelgrok.com)
+
+    Linux kernel references
