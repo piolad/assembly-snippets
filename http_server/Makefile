@@ -1,18 +1,18 @@
 EXEFILE = http
 OBJECTS = http.o
-CCFMT = -m32
 NASMFMT = -f elf32
-CCOPT = -g -O0
 NASMOPT = -g -F dwarf -w+all
 
-.c.o:
-	cc $(CCFMT) $(CCOPT) -c $<
 
-.s.o:
-	nasm $(NASMFMT) $(NASMOPT) -l $*.lst $<
+all: $(EXEFILE)
+
+$(OBJECTS): %.o: %.s
+	nasm $(NASMFMT) $(NASMOPT) -o $@ $<
+
 
 $(EXEFILE): $(OBJECTS)
-	cc $(CCFMT) -o $@ $^
-	
+	ld -m elf_i386 -o $(EXEFILE) $(OBJECTS)
+
+.PHONY: clean
 clean:
-	rm *.o *.lst $(EXEFILE)
+	rm -f $(EXEFILE) $(OBJECTS) *.lst
